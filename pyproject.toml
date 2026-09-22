@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "keyfort"
 version = "1.0.0"
-description = "Dead-simple secrets: encrypt your .env, one word to get a fully injected shell. Any language."
+description = "Encrypt your secrets into one local file, injected as environment variables at launch — zero code changes, one command to enable."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "aiPublicProject" }]

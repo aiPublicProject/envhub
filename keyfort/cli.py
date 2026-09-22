@@ -70,6 +70,9 @@ def _resolve_file(file_arg=None):
 
 
 def _read_password(prompt="文件密码: "):
+    pw = os.environ.get("KEYFORT_PASSWORD")
+    if pw:          # 无人值守：调用方已持有密码（该变量本身就是密码），不再询问
+        return pw
     return getpass.getpass(prompt)
 
 
