@@ -82,7 +82,7 @@ What ends up on your machine:
 | `keyfort edit` | Edit secrets in your system editor (password required; re-encrypted on close) |
 | `keyfort set KEY value` | Add/update a secret (no password needed) |
 | `keyfort unset KEY` | Delete a secret |
-| `keyfort print KEY` | Print a single secret's value (password required) |
+| `keyfort get KEY` | Print a single secret's value (password required) |
 | `keyfort list` | List secret names (no values) |
 | `keyfort passwd` | Change the encryption password |
 | `keyfort run <command>` | Run a single command with the injected environment (scripts/CI; set `KEYFORT_PASSWORD` for unattended use) |

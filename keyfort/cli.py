@@ -337,7 +337,7 @@ def cmd_unset(args):
     print(f"keyfort: 已删除 {args.key}")
 
 
-def cmd_print(args):
+def cmd_get(args):
     enc = _resolve_file(args.file)
     pw = _read_password("查看需要密码: ")
     try:
@@ -465,7 +465,7 @@ def cmd_restore(args):
 # ---------------------------------------------------------------- 入口
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    known = {"edit", "set", "unset", "print", "list", "passwd", "run",
+    known = {"edit", "set", "unset", "get", "list", "passwd", "run",
              "init", "uninit", "activate", "deactivate", "restore"}
     if argv and not argv[0].startswith("-") and argv[0] not in known:
         # keyfort <明文文件> [密码]：加密登记并进入注入环境
@@ -489,7 +489,7 @@ def main(argv=None):
     p.add_argument("key")
     p.add_argument("file", nargs="?")
 
-    p = sub.add_parser("print", help="查看单个密钥的值（需输入密码）")
+    p = sub.add_parser("get", help="查看单个密钥的值（需输入密码）")
     p.add_argument("key")
     p.add_argument("file", nargs="?")
 

@@ -86,7 +86,7 @@ $ keyfort restore        # 一键还原回明文文件，删除 .keyfort 与缓�
 | `keyfort edit` | 用系统默认编辑器编辑密钥（需密码，关闭后自动重新加密） |
 | `keyfort set KEY value` | 设置/更新一个密钥（免密码） |
 | `keyfort unset KEY` | 删除一个密钥 |
-| `keyfort print KEY` | 查看单个密钥的值（需密码） |
+| `keyfort get KEY` | 查看单个密钥的值（需密码） |
 | `keyfort list` | 列出密钥名（不显示值） |
 | `keyfort passwd` | 更换加密密码 |
 | `keyfort run <命令>` | 以注入环境执行单条命令（脚本/CI 用；CI 里配 `KEYFORT_PASSWORD` 免交互） |

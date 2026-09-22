@@ -1,6 +1,6 @@
 """最终极简形态的全流程测试。
 
-覆盖：一次性加密登记（全部/部分选择）、注入运行、print/set/unset/edit、
+覆盖：一次性加密登记（全部/部分选择）、注入运行、get/set/unset/edit、
 passwd、错误密码路径、目录外指引、终端集成 init/uninit（幂等/摘除）、
 activate/deactivate --emit、明文还原 restore。
 keyring 用内存后端（进程内）+ KEYFORT_PASSWORD（子进程），绝不碰真实凭据库；
@@ -144,14 +144,14 @@ p = subprocess.run([sys.executable, "-m", "keyfort", "run", "cmd", "/c", "set DB
 case("keyfort run 注入（子进程）", "DB_PASS=secret123" in p.stdout,
      f"out={p.stdout!r} err={p.stderr[:150]!r}")
 
-# ---- set / unset / print ----
+# ---- set / unset / get ----
 cli.main(["set", "NEW_KEY", "new-value", str(PROJ)])
-out = capture_print(cli.main, ["print", "DB_PASS", str(PROJ)])
-case("print 查看单个密钥（只输出值）", out.strip() == "secret123", out)
-out = capture_print(cli.main, ["print", "NEW_KEY", str(PROJ)])
-case("print 含新增密钥", out.strip() == "new-value", out)
+out = capture_print(cli.main, ["get", "DB_PASS", str(PROJ)])
+case("get 查看单个密钥（只输出值）", out.strip() == "secret123", out)
+out = capture_print(cli.main, ["get", "NEW_KEY", str(PROJ)])
+case("get 含新增密钥", out.strip() == "new-value", out)
 cli.main(["unset", "NEW_KEY", str(PROJ)])
-out = capture_print(cli.main, ["print", "NEW_KEY", str(PROJ)])
+out = capture_print(cli.main, ["get", "NEW_KEY", str(PROJ)])
 case("unset 后查看该密钥已不存在", "不存在" in out, out)
 
 # ---- edit：用假编辑器改临时文件 ----
@@ -167,7 +167,7 @@ wrapper.write_text(f'@echo off\r\n"{sys.executable}" '
                    f'"{PROJ / "_fake_editor.py"}" %*\r\n', encoding="gbk")
 os.environ["EDITOR"] = str(wrapper)
 cli.main(["edit", str(PROJ)])
-out = capture_print(cli.main, ["print", "DB_PASS", str(PROJ)])
+out = capture_print(cli.main, ["get", "DB_PASS", str(PROJ)])
 case("edit 编辑后回加密", out.strip() == "rotated456", out[:150])
 (PROJ / "_fake_editor.py").unlink()
 wrapper.unlink()
@@ -181,10 +181,10 @@ _orig_getpass = getpass.getpass
 getpass.getpass = lambda prompt="": answers.get(prompt, "")
 cli.main(["passwd", str(PROJ)])
 getpass.getpass = _orig_getpass
-out = capture_print(cli.main, ["print", "DB_PASS", str(PROJ)])
+out = capture_print(cli.main, ["get", "DB_PASS", str(PROJ)])
 case("passwd 后新密码可解", out.strip() == "rotated456", out)
 answers["查看需要密码: "] = "pw-1234"
-out = capture_print(cli.main, ["print", "DB_PASS", str(PROJ)])
+out = capture_print(cli.main, ["get", "DB_PASS", str(PROJ)])
 case("passwd 后旧密码失效", "密码不正确" in out)
 
 # ---- 全部加密：明文删除 ----
