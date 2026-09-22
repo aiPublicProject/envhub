@@ -54,7 +54,7 @@ $ cd your-project
 $ keyfort .env.local your-password
 ```
 
-It asks two things in order: the **encryption scope** (everything, or partial — an editor opens where you keep only the lines to encrypt; what you keep IS the selection, and editing line counts doesn't matter), and **what to do with the original file** (extract these secrets / delete the whole file / keep it as-is). Then terminal integration installs automatically and you enter the injected environment.
+It asks two things in order: the **encryption scope** (everything, or partial — an editor opens where you keep only the lines to encrypt; what you keep IS the selection, and editing line counts doesn't matter), and **what to do with the original file** (extract these secrets / keep it as-is). Then terminal integration installs automatically and you enter the injected environment.
 
 Daily use is three actions:
 

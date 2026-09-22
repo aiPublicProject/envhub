@@ -228,24 +228,18 @@ def cmd_encrypt(args):
             sys.exit("编辑器里没有保留任何 KEY=VALUE 行，已取消")
         selected = set(secret_vars)
         print(f"✓ 已选中 {len(selected)} 个密钥：{'、'.join(sorted(selected))}")
-        rest = set(all_vars) - selected
         action = _ask(f"原文件 {src.name} 怎么处理？"
                       "[1] 从原文件摘出这些密钥（回车默认）"
-                      f" [2] 删除整个原文件（其余 {len(rest)} 个明文变量一并丢弃）"
-                      " [3] 原样保留: ")
+                      " [2] 原样保留: ")
         if action == "2":
-            src.unlink()
-            print(f"✓ 原文件已删除（其余 {len(rest)} 个明文变量一并丢弃）")
-        elif action == "3":
             print(f"✓ {src.name} 原样保留（明文与密文并存，注意别提交到 git）")
         else:
             new_text = _remove_keys_from_text(text, selected)
-            if not store.parse_env_text(new_text):
-                src.unlink()
-                print("✓ 原文件已无剩余明文变量，已删除")
-            else:
-                src.write_text(new_text, encoding="utf-8")
+            src.write_text(new_text, encoding="utf-8")
+            if store.parse_env_text(new_text):
                 print(f"✓ 已从 {src.name} 摘出选中密钥（其余留明文，注释/格式保留）")
+            else:
+                print(f"✓ 已从 {src.name} 摘出全部变量（原文件仅剩注释/空行）")
 
     secret_text = store.dump_env_text(secret_vars)
     enc = src.parent / store.FILENAME

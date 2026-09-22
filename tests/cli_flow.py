@@ -197,7 +197,7 @@ f3 = PROJ3 / ".env"
 f3.write_text("SECRET_X=hidden\nPORT=8080\n", encoding="utf-8")
 os.environ["PICK_KEEP"] = "SECRET_X="
 ANSWERS.clear()
-ANSWERS.extend(["2", "3"])          # 部分 → 只留 SECRET_X → 3=原样保留
+ANSWERS.extend(["2", "2"])          # 部分 → 只留 SECRET_X → 2=原样保留
 cli.main([str(f3), "pw-keep"])
 case("原样保留：明文文件未动",
      "SECRET_X=hidden" in f3.read_text(encoding="utf-8")
