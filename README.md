@@ -1,6 +1,6 @@
 # keyfort
 
-> 把项目里的 `.env` 变成**一个加密文件 + 一个词**。
+> 把项目里的 `.env.local` 变成**一个加密文件 + 无侵入一键启用**。
 
 2026 年，xAI 的 Grok Build 和智谱的 ZCode 先后被曝**静默上传用户整个代码库**——
 Git 历史、本地记录、明文密钥一并打包上云。keyfort 把敏感密钥加密成一个
@@ -10,8 +10,7 @@ Git 历史、本地记录、明文密钥一并打包上云。keyfort 把敏感�
 密钥自动注入环境变量——`npm run dev`、`python main.py` 原样执行，
 **代码一行都不用改**。
 
-纯本地工具：不需要账号、不连服务器、不做任何网络请求。命令叫 `keyfort`，包名叫
-`keyfort`。给个人开发者；团队共享请看文末「相关工具」。
+纯本地工具：不需要账号、不连服务器、不做任何网络请求。给个人开发者。
 
 ## 快速一览
 
@@ -143,15 +142,6 @@ KEYFORT1
   一致；keyfort 防的是"密钥文件被提交到 git / 被拷走"
 - 密码丢失即数据丢失——没有后门，请把密码和 `.keyfort` 一起备份
 - `git add -f` 强推——`.gitignore` 只防误提交，防不了故意绕过
-
-## 相关工具
-
-- [1Password CLI](https://developer.1password.com/docs/cli/) —— 密钥在云端保险库，
-  团队共享、多设备同步的首选；需要订阅
-- [sops](https://github.com/getsops/sops) —— 整文件加密提交进 git，配合 age/KMS，
-  适合团队仓库；个人用要自己保管 age 私钥文件
-- [direnv](https://github.com/direnv/direnv) —— 目录级环境变量切换（不加密），
-  keyfort 的终端集成与它思路同源
 
 ## 开发
 
