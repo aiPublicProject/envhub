@@ -146,12 +146,13 @@ case("keyfort run 注入（子进程）", "DB_PASS=secret123" in p.stdout,
 
 # ---- set / unset / print ----
 cli.main(["set", "NEW_KEY", "new-value", str(PROJ)])
-out = capture_print(cli.main, ["print", str(PROJ)])
-case("print 显示全部（含新增）", "DB_PASS=secret123" in out
-     and "NEW_KEY=new-value" in out)
+out = capture_print(cli.main, ["print", "DB_PASS", str(PROJ)])
+case("print 查看单个密钥（只输出值）", out.strip() == "secret123", out)
+out = capture_print(cli.main, ["print", "NEW_KEY", str(PROJ)])
+case("print 含新增密钥", out.strip() == "new-value", out)
 cli.main(["unset", "NEW_KEY", str(PROJ)])
-out = capture_print(cli.main, ["print", str(PROJ)])
-case("unset 已删除", "NEW_KEY" not in out)
+out = capture_print(cli.main, ["print", "NEW_KEY", str(PROJ)])
+case("unset 后查看该密钥已不存在", "不存在" in out, out)
 
 # ---- edit：用假编辑器改临时文件 ----
 (PROJ / "_fake_editor.py").write_text(
@@ -166,8 +167,8 @@ wrapper.write_text(f'@echo off\r\n"{sys.executable}" '
                    f'"{PROJ / "_fake_editor.py"}" %*\r\n', encoding="gbk")
 os.environ["EDITOR"] = str(wrapper)
 cli.main(["edit", str(PROJ)])
-out = capture_print(cli.main, ["print", str(PROJ)])
-case("edit 编辑后回加密", "DB_PASS=rotated456" in out, out[:150])
+out = capture_print(cli.main, ["print", "DB_PASS", str(PROJ)])
+case("edit 编辑后回加密", out.strip() == "rotated456", out[:150])
 (PROJ / "_fake_editor.py").unlink()
 wrapper.unlink()
 os.environ["EDITOR"] = str(_picker_bat)      # 恢复给后续部分加密用例
@@ -180,10 +181,10 @@ _orig_getpass = getpass.getpass
 getpass.getpass = lambda prompt="": answers.get(prompt, "")
 cli.main(["passwd", str(PROJ)])
 getpass.getpass = _orig_getpass
-out = capture_print(cli.main, ["print", str(PROJ)])
-case("passwd 后新密码可解", "DB_PASS=rotated456" in out)
+out = capture_print(cli.main, ["print", "DB_PASS", str(PROJ)])
+case("passwd 后新密码可解", out.strip() == "rotated456", out)
 answers["查看需要密码: "] = "pw-1234"
-out = capture_print(cli.main, ["print", str(PROJ)])
+out = capture_print(cli.main, ["print", "DB_PASS", str(PROJ)])
 case("passwd 后旧密码失效", "密码不正确" in out)
 
 # ---- 全部加密：明文删除 ----

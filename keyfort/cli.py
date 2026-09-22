@@ -344,8 +344,9 @@ def cmd_print(args):
         vars = _entries_from(enc.read_bytes(), pw, enc.name)
     except store.WrongPassword:
         sys.exit("密码不正确")
-    for k in sorted(vars):
-        print(f"{k}={vars[k]}")
+    if args.key not in vars:
+        sys.exit(f"{args.key} 不存在")
+    print(vars[args.key])
 
 
 def cmd_list(args):
@@ -488,7 +489,8 @@ def main(argv=None):
     p.add_argument("key")
     p.add_argument("file", nargs="?")
 
-    p = sub.add_parser("print", help="打印全部密钥（需输入密码）")
+    p = sub.add_parser("print", help="查看单个密钥的值（需输入密码）")
+    p.add_argument("key")
     p.add_argument("file", nargs="?")
 
     p = sub.add_parser("list", help="列出全部密钥名（不显示值）")
