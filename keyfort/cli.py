@@ -221,16 +221,16 @@ def cmd_encrypt(args):
     if scope != "2":
         secret_vars = all_vars
         src.unlink()
-        print(f"✓ 全部 {len(all_vars)} 个变量已加密（原明文已删除）")
+        print(f"✓ 已选中全部 {len(all_vars)} 个变量，原明文已删除")
     else:
         kept_text, secret_vars = _pick_by_editor(src, text)
         if not secret_vars:
             sys.exit("编辑器里没有保留任何 KEY=VALUE 行，已取消")
         selected = set(secret_vars)
-        print(f"✓ 已选择加密 {len(selected)} 个密钥：{'、'.join(sorted(selected))}")
+        print(f"✓ 已选中 {len(selected)} 个密钥：{'、'.join(sorted(selected))}")
         rest = set(all_vars) - selected
         action = _ask(f"原文件 {src.name} 怎么处理？"
-                      "[1] 移除已加密的 key（回车默认）"
+                      "[1] 从原文件摘出这些密钥（回车默认）"
                       f" [2] 删除整个原文件（其余 {len(rest)} 个明文变量一并丢弃）"
                       " [3] 原样保留: ")
         if action == "2":
@@ -242,10 +242,10 @@ def cmd_encrypt(args):
             new_text = _remove_keys_from_text(text, selected)
             if not store.parse_env_text(new_text):
                 src.unlink()
-                print("✓ 原文件已无剩余变量，已删除")
+                print("✓ 原文件已无剩余明文变量，已删除")
             else:
                 src.write_text(new_text, encoding="utf-8")
-                print(f"✓ {src.name} 已移除加密的 key（其余留明文，注释/格式保留）")
+                print(f"✓ 已从 {src.name} 摘出选中密钥（其余留明文，注释/格式保留）")
 
     secret_text = store.dump_env_text(secret_vars)
     enc = src.parent / store.FILENAME
@@ -345,7 +345,7 @@ def cmd_list(args):
         names = list(_entries_from(enc.read_bytes(), pw, enc.name))
     except store.WrongPassword:
         sys.exit("密码不正确")
-    print(f"{enc}（{len(names)} 个变量）")
+    print(f"{enc}（{len(names)} 个密钥）")
     for n in sorted(names):
         print(" ", n)
 
@@ -468,19 +468,19 @@ def main(argv=None):
     p = sub.add_parser("edit", help="用系统默认编辑器编辑密钥（需输入密码）")
     p.add_argument("file", nargs="?", help="加密文件或目录（默认向上查找）")
 
-    p = sub.add_parser("set", help="设置/更新一个变量（无需输入密码）")
+    p = sub.add_parser("set", help="设置/更新一个密钥（无需输入密码）")
     p.add_argument("key")
     p.add_argument("value")
     p.add_argument("file", nargs="?")
 
-    p = sub.add_parser("unset", help="删除一个变量")
+    p = sub.add_parser("unset", help="删除一个密钥")
     p.add_argument("key")
     p.add_argument("file", nargs="?")
 
-    p = sub.add_parser("print", help="打印全部变量（需输入密码）")
+    p = sub.add_parser("print", help="打印全部密钥（需输入密码）")
     p.add_argument("file", nargs="?")
 
-    p = sub.add_parser("list", help="列出全部变量名（不显示值）")
+    p = sub.add_parser("list", help="列出全部密钥名（不显示值）")
     p.add_argument("file", nargs="?")
 
     p = sub.add_parser("passwd", help="更换加密密码")
