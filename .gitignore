@@ -4,3 +4,5 @@ __pycache__/
 check.js
 launch.log
 *.png
+dist/
+build/
