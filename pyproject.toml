@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "keyfort"
+version = "1.0.0"
+description = "Dead-simple secrets: encrypt your .env, one word to get a fully injected shell. Any language."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "aiPublicProject" }]
+keywords = ["env", "dotenv", "secrets", "environment", "encryption", "aes-gcm"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development",
+]
+requires-python = ">=3.9"
+dependencies = ["cryptography>=41", "keyring>=24"]
+
+[project.urls]
+Homepage = "https://github.com/aiPublicProject/keyfort"
+Issues = "https://github.com/aiPublicProject/keyfort/issues"
+
+[project.scripts]
+keyfort = "keyfort.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["keyfort*"]

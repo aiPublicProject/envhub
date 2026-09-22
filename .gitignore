@@ -1,0 +1,6 @@
+__pycache__/
+*.egg-info/
+*.pyc
+check.js
+launch.log
+*.png
