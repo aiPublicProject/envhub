@@ -287,18 +287,11 @@ def cmd_encrypt(args):
 
 def cmd_edit(args):
     enc = _resolve_file(args.file)
-    pw = _cached_pw(str(enc.parent))
-    if pw:
-        try:
-            text = store.decrypt_bytes(enc.read_bytes(), pw).decode("utf-8")
-        except store.WrongPassword:
-            pw = None
-    if pw is None:                        # 查看需要密码：每次确认
-        pw = _read_password("查看/编辑需要密码: ")
-        try:
-            text = store.decrypt_bytes(enc.read_bytes(), pw).decode("utf-8")
-        except store.WrongPassword:
-            sys.exit("密码不正确")
+    pw = _read_password("查看/编辑需要密码: ")   # 定稿设计：编辑每次确认，不走缓存
+    try:
+        text = store.decrypt_bytes(enc.read_bytes(), pw).decode("utf-8")
+    except store.WrongPassword:
+        sys.exit("密码不正确")
     fd, tmp = tempfile.mkstemp(prefix="keyfort-edit-", suffix=".env")
     os.close(fd)
     tmp = pathlib.Path(tmp)
