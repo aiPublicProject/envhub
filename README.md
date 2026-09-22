@@ -1,160 +1,143 @@
 # keyfort
 
-> 加密本地密钥文件，启动时注入环境变量，无代码侵入一键启用，避免密钥信息泄露。
+**English** | [简体中文](README.zh-CN.md)
 
-2026 年，xAI 的 Grok Build 和智谱的 ZCode 先后被曝**静默上传用户整个代码库**——
-Git 历史、本地记录、明文密钥一并打包上云。keyfort 把敏感密钥加密成一个
-`.keyfort` 文件：就算哪天被工具打包传走，传走的也只是密文。
+> Encrypt your secrets into one local file, injected as environment variables at launch — zero code changes, one command to enable, no more leaked keys.
 
-`DB_PASS`、`API_KEY` 这类敏感配置不再以明文躺在项目里；开发时进入项目目录，
-密钥自动注入环境变量——`npm run dev`、`python main.py` 原样执行，
-**代码一行都不用改**。
+In 2026, xAI's Grok Build and Zhipu's ZCode were both caught **silently uploading users' entire codebases** — Git history, local records, and plaintext API keys, all packaged and shipped to the cloud. keyfort encrypts your secrets into a single `.keyfort` file: even if a tool packages it up and sends it away someday, what leaves your machine is ciphertext.
 
-纯本地工具：不需要账号、不连服务器、不做任何网络请求。给个人开发者。
+`DB_PASS`, `API_KEY` and other sensitive values no longer sit in plaintext inside your project. When you develop, entering the project directory automatically injects them as environment variables — `npm run dev` and `python main.py` run untouched, **not a single line of code changes**.
 
-## 快速一览
+A purely local tool: no account, no server, no network requests of any kind. Built for individual developers.
+
+## Quick Look
 
 ```console
 $ pip install keyfort
 
-$ cd 我的项目
-$ keyfort .env.local 我的密码
-加密范围？[1] 全部（回车默认） [2] 部分（编辑器里只保留要加密的行）: 2
-   ↳ 弹出你的编辑器：只留下要加密的行，保存关闭
-原文件 .env.local 怎么处理？[1] 从原文件摘出这些密钥（回车默认） ...: 1
+$ cd my-project
+$ keyfort .env.local my-password
+Scope? [1] all (default) [2] partial — keep only the lines to encrypt, in your editor: 2
+   ↳ your editor opens: keep the lines to encrypt, save & close
+Original .env.local? [1] extract these secrets from the file (default) ...: 1
 
-$ npm run dev            # 密钥已在环境里，正常跑
+$ npm run dev            # secrets are already in the environment
 
-# ---- 下次开工 ----
-$ cd 我的项目            # 新开终端，cd 进来即自动注入，什么都不用敲
+# ---- next session ----
+$ cd my-project          # open a new terminal, cd in — auto-injected, nothing to type
 ```
 
-没有装终端集成的终端里，敲一个词 `keyfort` 也能进入注入环境（exit 返回）。
+In terminals without the integration installed, typing the single word `keyfort` also drops you into the injected environment (exit to return).
 
-## 为什么是 keyfort
+## Why keyfort
 
-- **纯本地**——零账号、零服务、零网络请求，断网完整可用
-- **代码零改动**——注入的是环境变量（操作系统父子进程继承），node / python / 任何语言通用
-- **密码只输一次**——存进系统密码管理器（Windows 凭据管理器 / macOS 钥匙串 / Linux Secret Service），磁盘上不落明文
-- **敏感 key 与普通变量拆开**——`DB_PASS` 进密文，`PORT=3000` 留在原文件给框架照常读
-- **可审计**——核心逻辑 3 个文件约 950 行，半小时能读完；依赖只有 `cryptography` 和 `keyring`
+- **Purely local** — no account, no server, no network requests; fully usable offline
+- **Zero code changes** — injection happens via environment variables (OS parent-to-child inheritance); works with node / python / any language
+- **Type the password once** — stored in the OS credential manager (Windows Credential Manager / macOS Keychain / Linux Secret Service); no plaintext ever hits the disk
+- **Secrets separated from ordinary vars** — `DB_PASS` goes into the ciphertext, `PORT=3000` stays in the original file for frameworks to read as usual
+- **Auditable** — 3 core files, ~950 lines, readable in half an hour; only two dependencies: `cryptography` and `keyring`
 
-## 安装
+## Installation
 
 ```console
-$ pip install keyfort          # 发布前：pip install git+https://github.com/aiPublicProject/keyfort.git
+$ pip install keyfort          # before the first release: pip install git+https://github.com/aiPublicProject/keyfort.git
 ```
 
-Python ≥ 3.9；Windows / macOS / Linux。
+Python ≥ 3.9; Windows / macOS / Linux.
 
-## 快速开始
+> Note: interactive CLI messages are currently Chinese-only. Localization is on the [roadmap](ROADMAP.md).
+
+## Quick Start
 
 ```console
-$ cd 你的项目
-$ keyfort .env.local 你的密码
+$ cd your-project
+$ keyfort .env.local your-password
 ```
 
-依次问你两件事：**加密范围**（全部，或在编辑器里只保留要加密的行——留下的就是选择，
-怎么改行数都不影响）；**原文件怎么处理**（摘出这些密钥 / 删除整个原文件 / 原样保留）。
-然后自动装终端集成、进入注入环境。
+It asks two things in order: the **encryption scope** (everything, or partial — an editor opens where you keep only the lines to encrypt; what you keep IS the selection, and editing line counts doesn't matter), and **what to do with the original file** (extract these secrets / delete the whole file / keep it as-is). Then terminal integration installs automatically and you enter the injected environment.
 
-日常就三个动作：
+Daily use is three actions:
 
 ```console
-$ keyfort edit           # 弹编辑器改密钥，关闭自动重新加密（需输密码）
-$ keyfort set KEY value  # 加一个密钥（免密码）
-$ keyfort restore        # 一键还原回明文文件，删除 .keyfort 与缓存密码
+$ keyfort edit           # edit secrets in your editor; re-encrypted on close (password required)
+$ keyfort set KEY value  # add a secret (no password)
+$ keyfort restore        # one-click restore to plaintext; deletes .keyfort and the cached password
 ```
 
-跑完之后，电脑上多了什么：
+What ends up on your machine:
 
-| 位置 | 是什么 |
+| Location | What it is |
 |---|---|
-| 项目里的 `.keyfort` | 密文文件（自动加进 `.gitignore`） |
-| 项目里的 `.env.local` | 原文件，敏感 key 已摘出，其余原样（自动加进 `.gitignore`） |
-| `C:\Users\你\.keyfort\`（macOS/Linux：`~/.keyfort/`） | cmd 自动激活用的小脚本，`keyfort uninit` 删掉 |
-| 系统密码管理器 | 加密密码，**不是文件** |
+| `.keyfort` in your project | The encrypted secrets file (auto-added to `.gitignore`) |
+| `.env.local` in your project | The original file, secrets extracted, the rest intact (auto-added to `.gitignore`) |
+| `C:\Users\you\.keyfort\` (macOS/Linux: `~/.keyfort/`) | A tiny folder holding the cmd auto-activation script; removed by `keyfort uninit` |
+| Your OS password manager | The encryption password — **not a file** |
 
-## 命令
+## Commands
 
-| 命令 | 作用 |
+| Command | What it does |
 |---|---|
-| `keyfort .env.local 密码` | 加密登记：选范围 → 拆分加密 → 装终端集成 → 进入注入环境 |
-| `keyfort` | 进入注入环境（装了终端集成的终端里 = 就地激活，无需 exit） |
-| `keyfort edit` | 用系统默认编辑器编辑密钥（需密码，关闭后自动重新加密） |
-| `keyfort set KEY value` | 设置/更新一个密钥（免密码） |
-| `keyfort unset KEY` | 删除一个密钥 |
-| `keyfort print` | 打印全部密钥（需密码） |
-| `keyfort list` | 列出密钥名（不显示值） |
-| `keyfort passwd` | 更换加密密码 |
-| `keyfort run <命令>` | 以注入环境执行单条命令（脚本/CI 用；CI 里配 `KEYFORT_PASSWORD` 免交互） |
-| `keyfort restore` | 明文还原：密钥合回 env 文件，删除 `.keyfort` 与缓存密码 |
-| `keyfort init` / `uninit` | 安装 / 移除终端集成（幂等，可完整摘除） |
+| `keyfort .env.local password` | Encrypt & register: choose scope → split & encrypt → install terminal integration → enter injected environment |
+| `keyfort` | Enter the injected environment (in integrated terminals = in-place activation, no exit needed) |
+| `keyfort edit` | Edit secrets in your system editor (password required; re-encrypted on close) |
+| `keyfort set KEY value` | Add/update a secret (no password needed) |
+| `keyfort unset KEY` | Delete a secret |
+| `keyfort print` | Print all secrets (password required) |
+| `keyfort list` | List secret names (no values) |
+| `keyfort passwd` | Change the encryption password |
+| `keyfort run <command>` | Run a single command with the injected environment (scripts/CI; set `KEYFORT_PASSWORD` for unattended use) |
+| `keyfort restore` | Restore plaintext: merge secrets back into the env file, delete `.keyfort` and the cached password |
+| `keyfort init` / `uninit` | Install / remove terminal integration (idempotent, fully reversible) |
 
-终端集成装的是：PowerShell 5.1/7 的 profile、bash 的 `.bashrc`、cmd 的 AutoRun 各一小段
-带标记的脚本。PowerShell 若因执行策略 Restricted 不生效：
-`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`。
+The terminal integration adds a small marked script to: PowerShell 5.1/7 profiles, bash's `.bashrc`, and cmd's AutoRun. If PowerShell's execution policy is Restricted and profiles don't load: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
-## 工作原理
+## How It Works
 
-**加密**。`.keyfort` 存的是你选中那几行 `KEY=VALUE` 文本的密文：
+**Encryption**. `.keyfort` stores the ciphertext of the selected `KEY=VALUE` lines:
 
 ```
 KEYFORT1
-<base64(salt 16字节 + nonce 12字节 + AES-256-GCM 密文)>
+<base64(salt 16B + nonce 12B + AES-256-GCM ciphertext)>
 ```
 
-密钥由密码经 PBKDF2-HMAC-SHA256（20 万次迭代）派生，盐每次随机；AES-256-GCM 带认证，
-文件被篡改会解密失败而不是解出假值。存储的只是原始字节，`KEY=VALUE` 的解析只发生在
-注入那一刻。
+The encryption key is derived from your password via PBKDF2-HMAC-SHA256 (200,000 iterations) with a fresh random salt each time. AES-256-GCM is authenticated — a tampered file fails to decrypt rather than yielding fake values. Only raw bytes are stored; `KEY=VALUE` parsing happens only at injection time.
 
-**注入**。环境变量是操作系统"父进程传子进程"的机制——`keyfort` 解密后派生子 shell，
-把变量放进它的环境块，所以任何语言都拿得到。终端集成是另一条路：shell 函数调用
-`keyfort activate --emit` 拿到一段赋值脚本，在**当前**会话里执行（shell 函数不是子进程，
-改得了当前环境）；`KEYFORT_ACTIVE_KEYS` 标记防重复注入、供清除用。
+**Injection**. Environment variables are the OS's parent-to-child mechanism — `keyfort` decrypts, spawns a child shell (bash / PowerShell / cmd auto-detected), and puts the variables into its environment block, so any language can read them. Terminal integration takes another path: a shell function calls `keyfort activate --emit` to get an assignment script and runs it in the **current** session (a shell function is not a child process, so it can modify the current environment); the `KEYFORT_ACTIVE_KEYS` marker prevents double injection and enables cleanup.
 
-**换电脑**：把 `.keyfort` 拷过去，输一次密码即可——密文与操作系统无关，无需重新加密。
+**New machine**. Copy `.keyfort` over and type the password once — the ciphertext is OS-independent, no re-encryption needed.
 
-## 安全
+## Security
 
-**为什么这些保证值得在意——两个真实发生的事故：**
+**Why these guarantees matter — two real incidents:**
 
-- **2026 年 7 月，xAI 的 Grok Build 被曝静默上传用户代码库**：独立研究员逆向发现，
-  这个 AI 编程工具会把用户完整的 Git 仓库与提交历史上传到云端，关掉隐私设置也拦不住；
-  马斯克随后承诺删除数据并开源 Grok Build
-- **2026 年 9 月，智谱 ZCode 被曝静默上传用户工作区**：登录即打包上传整个工作区
-  （含 Git 提交历史与本地操作记录），界面上没有真正可用的关闭开关；智谱随后致歉
-  并承诺开源、接受第三方审计
+- **July 2026: xAI's Grok Build caught silently uploading users' codebases.** Reverse engineering by an independent researcher showed the AI coding tool uploaded users' complete Git repositories and commit history to the cloud — even with privacy settings off. Musk later promised to delete the data and open-sourced Grok Build.
+- **September 2026: Zhipu's ZCode caught silently uploading user workspaces.** After login it packaged and uploaded the entire workspace (including Git history and local operation records), with no working off switch in the UI. Zhipu later apologized and promised to open-source the code and accept third-party audits.
 
-两起事故的共同点：用户都是靠**逆向**才知道工具在自己电脑上传了什么，而明文
-`.env` 会跟着工作区一起上云。keyfort 的答案是双向的——`.keyfort` 里只有密文，
-传走也不怕；且 keyfort 零网络请求、代码开源，不需要逆向就能知道它做了什么。
+The common thread: users only learned what these tools uploaded from their own machines **through reverse engineering** — and a plaintext `.env` goes to the cloud along with the workspace. keyfort's answer works in both directions: `.keyfort` contains only ciphertext, so uploads can't hurt you; and keyfort makes zero network requests with open-source code — no reverse engineering needed to know what it does.
 
-**它保证的**：
+**What it guarantees:**
 
-- 无任何网络请求：代码不 import 任何网络模块，不联网、不注册、不收集数据
-- 开源可审（MIT）：核心逻辑 cli.py 522 + shells.py 331 + store.py 101 行
-- 明文只出现在两处：终端会话、`keyfort edit` 的临时文件（关闭即删）
+- No network requests of any kind: the code imports no network modules — no internet, no registration, no data collection
+- Open source, quick to audit (MIT): core logic is ~950 lines across 3 files
+- Plaintext exists in only two places: your terminal session, and `keyfort edit`'s temp file (deleted on close)
 
-**它不防的（如实）**：
+**What it does not protect against (honestly):**
 
-- 同账户恶意软件能读到你注入的环境变量和凭据库——与 1Password CLI、sops、ssh-agent
-  一致；keyfort 防的是"密钥文件被提交到 git / 被拷走"
-- 密码丢失即数据丢失——没有后门，请把密码和 `.keyfort` 一起备份
-- `git add -f` 强推——`.gitignore` 只防误提交，防不了故意绕过
+- Same-user malware can read your injected environment variables and credential store — the same boundary as 1Password CLI, sops, and ssh-agent; keyfort protects against "secret files committed to git / copied away"
+- Lose the password, lose the data — there is no backdoor; back the password up together with `.keyfort`
+- `git add -f` forced adds — `.gitignore` prevents accidents, not deliberate bypasses
 
-## 开发
+## Development
 
 ```console
 $ git clone https://github.com/aiPublicProject/keyfort.git
 $ cd keyfort && pip install -e .
-$ python tests/cli_flow.py      # 全流程测试，应全部 PASS
-$ python -m build               # 构建到 dist/
+$ python tests/cli_flow.py      # full-flow tests; all should PASS
+$ python -m build               # build into dist/
 ```
 
-规划中的功能与设计取舍（占位符模型、代理模式、明确不做的清单）见
-[ROADMAP.md](ROADMAP.md)。
+Planned features and design trade-offs (placeholder model, proxy mode, explicit non-goals) are in [ROADMAP.md](ROADMAP.md) (currently Chinese).
 
-## 许可证
+## License
 
 MIT © aiPublicProject
