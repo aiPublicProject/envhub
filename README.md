@@ -19,7 +19,7 @@ $ cd my-project
 $ keyfort .env.local my-password
 Scope? [1] all (default) [2] partial — keep only the lines to encrypt, in your editor: 2
    ↳ your editor opens: keep the lines to encrypt, save & close
-Original .env.local? [1] extract these secrets from the file (default) ...: 1
+Original .env.local? [1] hide the secrets in place (default) ...: 1
 
 $ npm run dev            # secrets are already in the environment
 
@@ -34,7 +34,7 @@ In terminals without the integration installed, typing the single word `keyfort`
 - **Purely local** — no account, no server, no network requests; fully usable offline
 - **Zero code changes** — injection happens via environment variables (OS parent-to-child inheritance); works with node / python / any language
 - **Type the password once** — stored in the OS credential manager (Windows Credential Manager / macOS Keychain / Linux Secret Service); no plaintext ever hits the disk
-- **Secrets separated from ordinary vars** — `DB_PASS` goes into the ciphertext, `PORT=3000` stays in the original file for frameworks to read as usual
+- **Secrets hidden in place** — `DB_PASS`'s value becomes a `<keyfort:DB_PASS>` placeholder (**the file is safe to commit to git**), while `PORT=3000` stays plaintext for frameworks to read
 - **Auditable** — 3 core files, ~950 lines, readable in half an hour; only two dependencies: `cryptography` and `keyring`
 
 ## Installation
@@ -54,7 +54,7 @@ $ cd your-project
 $ keyfort .env.local your-password
 ```
 
-It asks two things in order: the **encryption scope** (everything, or partial — an editor opens where you keep only the lines to encrypt; what you keep IS the selection, and editing line counts doesn't matter), and **what to do with the original file** (extract these secrets / keep it as-is). Then terminal integration installs automatically and you enter the injected environment.
+It asks two things in order: the **encryption scope** (everything, or partial — an editor opens where you keep only the lines to encrypt; what you keep IS the selection, and editing line counts doesn't matter), and **what to do with the original file** (hide the secrets in place — values become placeholders, default / you handle it yourself). Then terminal integration installs automatically and you enter the injected environment.
 
 Daily use is three actions:
 
@@ -69,7 +69,7 @@ What ends up on your machine:
 | Location | What it is |
 |---|---|
 | `.keyfort` in your project | The encrypted secrets file (auto-added to `.gitignore`) |
-| `.env.local` in your project | The original file, secrets extracted, the rest intact (auto-added to `.gitignore`) |
+| `.env.local` in your project | Secret values replaced with `<keyfort:name>` placeholders, the rest intact — **safe to commit to git** |
 | `C:\Users\you\.keyfort\` (macOS/Linux: `~/.keyfort/`) | A tiny folder holding the cmd auto-activation script; removed by `keyfort uninit` |
 | Your OS password manager | The encryption password — **not a file** |
 
@@ -101,6 +101,8 @@ KEYFORT1
 ```
 
 The encryption key is derived from your password via PBKDF2-HMAC-SHA256 (200,000 iterations) with a fresh random salt each time. AES-256-GCM is authenticated — a tampered file fails to decrypt rather than yielding fake values. Only raw bytes are stored; `KEY=VALUE` parsing happens only at injection time.
+
+**Placeholders**. On registration, selected secret values in the original file are replaced with `<keyfort:same-name>` placeholders — the file now holds only placeholders and ordinary vars, and is **safe to commit** (config visible, values invisible). At injection time the real values are already set as same-named environment variables, and dotenv-family frameworks never overwrite existing env vars — so the placeholders are never read by your app.
 
 **Injection**. Environment variables are the OS's parent-to-child mechanism — `keyfort` decrypts, spawns a child shell (bash / PowerShell / cmd auto-detected), and puts the variables into its environment block, so any language can read them. Terminal integration takes another path: a shell function calls `keyfort activate --emit` to get an assignment script and runs it in the **current** session (a shell function is not a child process, so it can modify the current environment); the `KEYFORT_ACTIVE_KEYS` marker prevents double injection and enables cleanup.
 

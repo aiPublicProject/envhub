@@ -186,22 +186,49 @@ def _pick_by_editor(src: pathlib.Path, text: str):
     return kept, store.parse_env_text(kept)
 
 
-def _remove_keys_from_text(text: str, keys: set) -> str:
-    """按行从原文里摘掉被加密的 KEY=VALUE 行；注释、空行、其余行原样保留。"""
+def _hide_keys_in_text(text: str, keys: set) -> str:
+    """把选中密钥的值原位替换为 <keyfort:同名> 占位符；行/注释/其余行原样保留，
+    文件从此可提交 git。"""
     out = []
     for line in text.splitlines():
         stripped = line.strip()
-        if (not stripped.startswith("#") and "=" in stripped
-                and stripped.partition("=")[0].strip() in keys):
-            continue
-        out.append(line)
+        k = (stripped.partition("=")[0].strip()
+             if not stripped.startswith("#") and "=" in stripped else None)
+        out.append(f"{k}=<keyfort:{k}>" if k in keys else line)
     return "\n".join(out) + ("\n" if text.endswith("\n") else "")
+
+
+def _unhide_keys_in_text(text: str, vars: dict) -> str:
+    """把 <keyfort:名> 占位符换回真实值；库里有而文件没有的密钥追加到末尾。"""
+    out, seen = [], set()
+    for line in text.splitlines():
+        stripped = line.strip()
+        k, _, v = (stripped.partition("=") if "=" in stripped else ("", "", ""))
+        v = v.strip()
+        if (not stripped.startswith("#") and k.strip()
+                and v.startswith("<keyfort:") and v.endswith(">")):
+            name = v[len("<keyfort:"):-1]
+            if name in vars:
+                out.append(f"{name}={vars[name]}")
+                seen.add(name)
+                continue
+        out.append(line)
+    body = "\n".join(out)
+    missing = [k for k in vars if k not in seen]
+    if missing:
+        if body and not body.endswith("\n"):
+            body += "\n"
+        body += "".join(f"{k}={vars[k]}\n" for k in missing)
+    elif text.endswith("\n"):
+        body += "\n"
+    return body
 
 
 def cmd_encrypt(args):
     """keyfort <明文文件> [密码]：选范围（全部/部分）→ 加密 → 进入注入环境。
     部分加密 = 编辑器里只保留要加密的行（不做差异对比，留下的就是选择）；
-    原文件按行摘出这些 key，剩余明文的注释/格式原样保留。"""
+    原文件中被选密钥的值原位替换为 <keyfort:同名> 占位符——永不删除原文件，
+    文件只剩占位符与普通变量，可提交 git。"""
     src = pathlib.Path(args.file).resolve()   # 绝对路径：keyring 按项目根路径存
     if not src.is_file():
         sys.exit(f"文件不存在：{src}")
@@ -220,26 +247,23 @@ def cmd_encrypt(args):
                  "[2] 部分（编辑器里只保留要加密的行）: ")
     if scope != "2":
         secret_vars = all_vars
-        src.unlink()
-        print(f"✓ 已选中全部 {len(all_vars)} 个变量，原明文已删除")
+        src.write_text(_hide_keys_in_text(text, set(all_vars)), encoding="utf-8")
+        print(f"✓ 已隐藏全部 {len(all_vars)} 个密钥（值替换为占位符，原文件可提交 git）")
     else:
         kept_text, secret_vars = _pick_by_editor(src, text)
         if not secret_vars:
             sys.exit("编辑器里没有保留任何 KEY=VALUE 行，已取消")
         selected = set(secret_vars)
         print(f"✓ 已选中 {len(selected)} 个密钥：{'、'.join(sorted(selected))}")
-        action = _ask(f"原文件 {src.name} 怎么处理？"
-                      "[1] 从原文件摘出这些密钥（回车默认）"
-                      " [2] 原样保留: ")
+        action = _ask(f"原文件 {src.name} 的配置怎么处理？"
+                      "[1] 从原文件隐藏密钥（回车默认）"
+                      " [2] 你自己操作: ")
         if action == "2":
-            print(f"✓ {src.name} 原样保留（明文与密文并存，注意别提交到 git）")
+            print(f"✓ {src.name} 未改动（明文密钥仍在，请自行处理）")
         else:
-            new_text = _remove_keys_from_text(text, selected)
-            src.write_text(new_text, encoding="utf-8")
-            if store.parse_env_text(new_text):
-                print(f"✓ 已从 {src.name} 摘出选中密钥（其余留明文，注释/格式保留）")
-            else:
-                print(f"✓ 已从 {src.name} 摘出全部变量（原文件仅剩注释/空行）")
+            src.write_text(_hide_keys_in_text(text, selected), encoding="utf-8")
+            print(f"✓ 已在 {src.name} 隐藏 {len(selected)} 个密钥"
+                  f"（值替换为 <keyfort:名> 占位符，文件可提交 git）")
 
     secret_text = store.dump_env_text(secret_vars)
     enc = src.parent / store.FILENAME
@@ -247,8 +271,7 @@ def cmd_encrypt(args):
     _save_auth(enc.parent, pw)
     print(f"✓ 密文已写入 {enc}")
     store.ensure_gitignore(src.parent, store.FILENAME)
-    store.ensure_gitignore(src.parent, src.name)
-    print("✓ .gitignore 已更新")
+    print("✓ .gitignore 已更新（仅 .keyfort；原文件只剩占位符，可提交）")
 
     changed = shells.init_all()
     if changed:
@@ -433,10 +456,11 @@ def cmd_restore(args):
                 target = cand
                 break
     vars, _ = _decrypt_entries(enc)
-    plain = (store.parse_env_text(target.read_text(encoding="utf-8"))
-             if target.exists() else {})
-    plain.update(vars)
-    target.write_text(store.dump_env_text(plain), encoding="utf-8")
+    if target.exists():
+        target.write_text(
+            _unhide_keys_in_text(_read_text_tol(target), vars), encoding="utf-8")
+    else:
+        target.write_text(store.dump_env_text(vars), encoding="utf-8")
     enc.unlink()
     _kr_delete(str(root))
     print(f"✓ {len(vars)} 个密钥已还原 → {target}")

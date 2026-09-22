@@ -116,13 +116,16 @@ case("部分加密：进入注入环境",
 enc = PROJ / ".keyfort"
 case("部分加密：.keyfort 生成", enc.is_file())
 plain_now = PLAIN.read_text(encoding="utf-8")
-case("部分加密：明文移除所选密钥",
-     "DB_PASS" not in plain_now and "API_KEY" not in plain_now)
+case("部分加密：值替换为占位符",
+     "DB_PASS=<keyfort:DB_PASS>" in plain_now
+     and "API_KEY=<keyfort:API_KEY>" in plain_now
+     and "secret123" not in plain_now, plain_now)
 case("部分加密：明文保留其余变量",
      "PORT=3000" in plain_now and "DEBUG=1" in plain_now)
 case("部分加密：注释与格式原样保留", "# 注释行" in plain_now)
-case("gitignore 已补",
-     ".keyfort" in (PROJ / ".gitignore").read_text(encoding="utf-8"))
+_gi = (PROJ / ".gitignore").read_text(encoding="utf-8")
+case("gitignore 仅加 .keyfort（原文件可提交）",
+     ".keyfort" in _gi and ".env.local" not in _gi)
 case("密码已入 keyring", "pw-1234" in MemKR.store.values())
 EH_HOME = pathlib.Path(os.environ["KEYFORT_HOME"])
 PS_PROF = EH_HOME / "Documents" / "WindowsPowerShell" / "profile.ps1"
@@ -189,7 +192,9 @@ f2 = PROJ2 / ".env"
 f2.write_text("A=1\nB=2\n", encoding="utf-8")
 ANSWERS.clear()                     # 无输入 → 回车默认 = 全部加密
 cli.main([str(f2), "pw-all"])
-case("全部加密：明文删除", not f2.exists() and (PROJ2 / ".keyfort").is_file())
+case("全部加密：值替换为占位符",
+     f2.exists() and "A=<keyfort:A>" in f2.read_text(encoding="utf-8")
+     and (PROJ2 / ".keyfort").is_file())
 
 # ---- 部分加密选项 3：原文件原样保留 ----
 PROJ3 = pathlib.Path(tempfile.mkdtemp(prefix="keyfort-cli-keep-"))
