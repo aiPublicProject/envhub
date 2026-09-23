@@ -106,7 +106,7 @@ working on that copy; to cut them off completely, rotate the secret values thems
 | `keyfort restore` | Restore plaintext: merge secrets back into the env file, delete `.keyfort` and the cached password |
 | `keyfort init` / `uninit` | Install / remove terminal integration (idempotent, fully reversible) |
 
-The terminal integration adds a small marked script to: PowerShell 5.1/7 profiles, bash's `.bashrc`, and cmd's AutoRun. If PowerShell's execution policy is Restricted and profiles don't load: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+The terminal integration adds a small marked script to the PowerShell 5.1/7 profiles and bash's `.bashrc` — **cd between projects in the same terminal and secrets follow automatically; leaving a project clears them**. cmd uses AutoRun, which only fires at startup — **no cd-following** (open a new terminal per project, or run `keyfort` manually). If PowerShell's execution policy is Restricted and profiles don't load: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
 ## How It Works
 

@@ -109,8 +109,10 @@ $ keyfort                             # 输一次密码，自动存入本机凭�
 | `keyfort restore` | 明文还原：密钥合回 env 文件，删除 `.keyfort` 与缓存密码 |
 | `keyfort init` / `uninit` | 安装 / 移除终端集成（幂等，可完整摘除） |
 
-终端集成装的是：PowerShell 5.1/7 的 profile、bash 的 `.bashrc`、cmd 的 AutoRun 各一小段
-带标记的脚本。PowerShell 若因执行策略 Restricted 不生效：
+终端集成装的是：PowerShell 5.1/7 的 profile 与 bash 的 `.bashrc` 里各一小段带标记的
+脚本——**同一终端里 cd 切换项目，密钥自动跟随注入，离开项目自动清除**。cmd 走
+AutoRun，只在终端启动时生效，**不支持 cd 跟随**（换项目请开新终端，或手动敲
+`keyfort`）。PowerShell 若因执行策略 Restricted 不生效：
 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`。
 
 ## 工作原理

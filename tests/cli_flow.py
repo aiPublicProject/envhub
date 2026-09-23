@@ -27,7 +27,7 @@ for k in ("KEYFORT_PASSWORD", "NODE_OPTIONS", "PYTHONPATH"):
 # shell 集成全部落在这个假 home 里（profile / .bashrc / cmd AutoRun 均不碰真实位置）
 os.environ["KEYFORT_HOME"] = str(pathlib.Path(tempfile.mkdtemp(prefix="keyfort-home-")))
 
-from keyfort import cli, store  # noqa: E402
+from keyfort import cli, shells, store  # noqa: E402
 import keyring  # noqa: E402
 import keyring.backend  # noqa: E402
 
@@ -346,6 +346,73 @@ case("无空格路径形式也识别",
 case("带引号含空格路径也识别",
      cli._editor_argv('"C:\\Apps\\My Code\\Code.exe"')[-1] == "--wait")
 case("终端编辑器不加参数", cli._editor_argv("vim") == ["vim"])
+
+# ---- cd 跟随切换：同一终端 A → B → 离开，密钥自动跟随/清除（真实 bash + PowerShell 加载集成块）----
+SW = pathlib.Path(tempfile.mkdtemp(prefix="keyfort-cli-sw-"))
+PA, PB = SW / "a", SW / "b"
+PA.mkdir(); PB.mkdir()
+for _p, _kv in [(PA, "KEYA=va\n"), (PB, "KEYB=vb\n")]:
+    (_p / ".env.local").write_text(_kv, encoding="utf-8")
+    (_p / ".keyfort").write_bytes(
+        store.encrypt_bytes(_kv.encode("utf-8"), "pw-sw"))
+_sw_env = dict(os.environ)
+_sw_env["KEYFORT_PASSWORD"] = "pw-sw"
+
+_blk = SW / "blk.sh"
+_blk.write_text(shells.sh_block(), encoding="utf-8")
+_af, _bf = str(PA).replace("\\", "/"), str(PB).replace("\\", "/")
+_sf = str(SW).replace("\\", "/")
+import shutil as _shutil                     # noqa: E402
+
+
+def _git_bash():
+    """避开 System32 里的 WSL bash（认不了 C:/ 路径），找 Git Bash。"""
+    for _c in [_shutil.which("bash"),
+               r"C:\Program Files\Git\bin\bash.exe",
+               r"C:\Program Files (x86)\Git\bin\bash.exe"]:
+        if _c and "system32" not in _c.lower():
+            return _c
+    return None
+
+
+_BASH = _git_bash()
+if _BASH:
+    _script = (
+        '. "' + str(_blk).replace("\\", "/") + '"\n'
+        'cd "' + _af + '" && __keyfort_hook && echo "A:$KEYA|$KEYB|$KEYFORT_DIR"\n'
+        'cd "' + _bf + '" && __keyfort_hook && echo "B:$KEYA|$KEYB|$KEYFORT_DIR"\n'
+        'cd "' + _sf + '" && __keyfort_hook && echo "OUT:$KEYA|$KEYB|$KEYFORT_DIR"\n')
+    p = subprocess.run([_BASH, "-c", _script], env=_sw_env,
+                       capture_output=True, text=True, errors="replace",
+                       timeout=120)
+    _lines = p.stdout.strip().splitlines()
+    case("bash 集成块：cd 跟随切换（A 注入→B 换血→离开清空）",
+         len(_lines) == 3
+         and _lines[0].startswith("A:va||") and _lines[0].endswith("/a")
+         and _lines[1].startswith("B:|vb|") and _lines[1].endswith("/b")
+         and _lines[2] == "OUT:||",
+         f"out={p.stdout!r} err={p.stderr[-200:]!r}")
+else:
+    print("[SKIP] 未找到 Git Bash，跳过 bash 集成块切换测试")
+
+_blk_ps = SW / "blk.ps1"
+_blk_ps.write_text(shells.ps_block(), encoding="utf-8-sig")
+_ps_script = (
+    ". '" + str(_blk_ps) + "'\n"
+    "cd '" + str(PA) + "'; __keyfort_hook; \"A:$env:KEYA|$env:KEYB|$env:KEYFORT_DIR\"\n"
+    "cd '" + str(PB) + "'; __keyfort_hook; \"B:$env:KEYA|$env:KEYB|$env:KEYFORT_DIR\"\n"
+    "cd '" + str(SW) + "'; __keyfort_hook; \"OUT:$env:KEYA|$env:KEYB|$env:KEYFORT_DIR\"")
+p = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                    "-Command", _ps_script], env=_sw_env,
+                   capture_output=True, text=True, errors="replace", timeout=180)
+_lines = [l.strip() for l in p.stdout.strip().splitlines()
+          if l.strip().startswith(("A:", "B:", "OUT:"))]
+case("PowerShell 集成块：cd 跟随切换（A 注入→B 换血→离开清空）",
+     len(_lines) == 3
+     and _lines[0].startswith("A:va||") and _lines[0].endswith("\\a")
+     and _lines[1].startswith("B:|vb|") and _lines[1].endswith("\\b")
+     and _lines[2] == "OUT:||",
+     f"out={p.stdout!r} err={p.stderr[-200:]!r}")
 
 # ---- 编辑器自动识别：VS Code 系集成终端（TERM_PROGRAM）----
 os.environ.pop("EDITOR", None)

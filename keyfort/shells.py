@@ -66,21 +66,50 @@ function keyfort {
   if ($args.Count -eq 0 -or $args[0] -in @('activate','deactivate')) {
     $a = if ($args.Count -eq 0) { @('activate') } else { $args }
     $out = & keyfort.exe @($a + @('--emit','ps'))
-    if ($LASTEXITCODE -eq 0 -and $out) { Invoke-Expression ($out -join "`n") }
+    if ($LASTEXITCODE -eq 0 -and $out) { Invoke-Expression ($out -join "`n"); __keyfort_mark }
   } else {
     & keyfort.exe @args
   }
 }
-# 进入已登记目录的终端自动激活
-if (-not $env:KEYFORT_ACTIVE_KEYS) {
+function __keyfort_find {
   $d = $PWD.Path
   while ($d -and -not (Test-Path (Join-Path $d '.keyfort'))) {
     $up = Split-Path $d
-    if (-not $up -or $up -eq $d) { $d = $null; break }
+    if (-not $up -or $up -eq $d) { return $null }
     $d = $up
   }
-  if ($d) { keyfort activate --quiet }
+  if ($d) { $d } else { $null }
 }
+function __keyfort_hook {
+  $d = __keyfort_find
+  if ("$d" -eq "$env:KEYFORT_DIR") { return }
+  if ($env:KEYFORT_ACTIVE_KEYS) {
+    foreach ($k in $env:KEYFORT_ACTIVE_KEYS.Split(',')) {
+      if ($k) { Remove-Item Env:$k -ErrorAction SilentlyContinue }
+    }
+    Remove-Item Env:KEYFORT_ACTIVE_KEYS -ErrorAction SilentlyContinue
+  }
+  Remove-Item Env:KEYFORT_DIR -ErrorAction SilentlyContinue
+  if (-not $d) { return }
+  $out = & keyfort.exe activate --emit ps --quiet 2>$null
+  if ($LASTEXITCODE -eq 0 -and $out) {
+    Invoke-Expression ($out -join "`n")
+    $env:KEYFORT_DIR = "$d"
+  } else {
+    Write-Host "keyfort: 本目录的密钥库未解锁——敲一次 keyfort 解锁后自动接管"
+    $env:KEYFORT_DIR = "$d"
+  }
+}
+function __keyfort_mark {
+  $d = __keyfort_find
+  if ($d) { $env:KEYFORT_DIR = "$d" }
+}
+if (-not $global:__keyfort_prompt_wrapped) {
+  $global:__keyfort_prompt_wrapped = $true
+  $global:__keyfort_orig_prompt = $function:prompt
+  function global:prompt { __keyfort_hook; & $global:__keyfort_orig_prompt }
+}
+__keyfort_hook
 """ + MARK_END + "\n"
 
 
@@ -91,22 +120,50 @@ keyfort() {
   if [ "$1" = "activate" ] || [ "$1" = "deactivate" ]; then
     local out
     out=$(command keyfort "$@" --emit sh) || return
-    [ -n "$out" ] && eval "$out"
+    [ -n "$out" ] && eval "$out" && __keyfort_mark
   else
     command keyfort "$@"
   fi
 }
-__keyfort_auto() {
-  [ -n "$KEYFORT_ACTIVE_KEYS" ] && return
+__keyfort_hook() {
   local d="$PWD" up
   while :; do
-    [ -f "$d/.keyfort" ] && { keyfort activate --quiet; return; }
-    up=$(dirname "$d")
+    [ -f "$d/.keyfort" ] && break
+    up="${d%/*}"
+    [ "$up" = "$d" ] && { d=""; break; }
+    d="$up"
+  done
+  [ "$d" = "$KEYFORT_DIR" ] && return
+  if [ -n "$KEYFORT_ACTIVE_KEYS" ]; then
+    local old IFS=','
+    for old in $KEYFORT_ACTIVE_KEYS; do unset "$old" 2>/dev/null; done
+    unset KEYFORT_ACTIVE_KEYS
+  fi
+  KEYFORT_DIR=""
+  [ -z "$d" ] && return
+  local out
+  if out=$(command keyfort activate --emit sh --quiet 2>/dev/null); then
+    [ -n "$out" ] && eval "$out"
+    KEYFORT_DIR="$d"
+  else
+    echo "keyfort: 本目录的密钥库未解锁——敲一次 keyfort 解锁后自动接管" >&2
+    KEYFORT_DIR="$d"
+  fi
+}
+__keyfort_mark() {
+  local d="$PWD" up
+  while :; do
+    [ -f "$d/.keyfort" ] && { KEYFORT_DIR="$d"; return; }
+    up="${d%/*}"
     [ "$up" = "$d" ] && return
     d="$up"
   done
 }
-__keyfort_auto
+case ";$PROMPT_COMMAND;" in
+  *";__keyfort_hook;"*) ;;
+  *) PROMPT_COMMAND="__keyfort_hook${PROMPT_COMMAND:+;$PROMPT_COMMAND}" ;;
+esac
+__keyfort_hook
 """ + MARK_END + "\n"
 
 
@@ -312,7 +369,7 @@ def activate_script(fmt: str, vars: dict, quiet: bool) -> str:
 
 def deactivate_script(fmt: str, keys: list, quiet: bool) -> str:
     """生成清除注入变量的脚本；keys 来自 KEYFORT_ACTIVE_KEYS 标记。"""
-    all_keys = list(keys) + ["KEYFORT_ACTIVE_KEYS"]
+    all_keys = list(keys) + ["KEYFORT_ACTIVE_KEYS", "KEYFORT_DIR"]
     lines = []
     if fmt == "ps":
         for k in all_keys:
