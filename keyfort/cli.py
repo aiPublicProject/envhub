@@ -227,6 +227,31 @@ def _unhide_keys_in_text(text: str, vars: dict) -> str:
     return body
 
 
+def cmd_create(args):
+    """keyfort create [密码]：直接创建空密钥库——不需要已有明文文件，
+    建库后用 set 添加 / edit 批量编辑。"""
+    found = store.find()
+    if found is not None:
+        sys.exit(f"已有密钥库：{found}（直接 keyfort set 添加密钥）")
+    pw = args.password or _read_password("加密密码: ")
+    if len(pw) < 4:
+        sys.exit("密码至少 4 位")
+    root = pathlib.Path.cwd()
+    enc = root / store.FILENAME
+    enc.write_bytes(store.encrypt_bytes(b"", pw))
+    _save_auth(root, pw)
+    store.ensure_gitignore(root, store.FILENAME)
+    print(f"✓ 已创建空密钥库 {enc}")
+    print("  keyfort set KEY value   添加密钥（免密码）")
+    print("  keyfort edit            批量编辑（需密码）")
+    print("  .env.local 里可写 KEY=<keyfort:KEY> 占位符（可选，框架需要时）")
+    changed = shells.init_all()
+    if changed:
+        for c in changed:
+            print(f"✓ 终端集成：{c}")
+    print("✓ 新开终端进入本目录即自动注入（set 之后就有变量）")
+
+
 def cmd_encrypt(args):
     """keyfort <明文文件> [密码]：选范围（全部/部分）→ 加密 → 进入注入环境。
     部分加密 = 编辑器里只保留要加密的行（不做差异对比，留下的就是选择）；
@@ -468,7 +493,7 @@ def cmd_restore(args):
 # ---------------------------------------------------------------- 入口
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    known = {"edit", "set", "unset", "get", "list", "passwd", "run",
+    known = {"edit", "set", "unset", "get", "list", "passwd", "run", "create",
              "init", "uninit", "activate", "deactivate", "restore"}
     if argv and not argv[0].startswith("-") and argv[0] not in known:
         # keyfort <明文文件> [密码]：加密登记并进入注入环境
@@ -504,6 +529,9 @@ def main(argv=None):
 
     p = sub.add_parser("run", help="以注入环境执行单条命令（脚本/CI 用）")
     p.add_argument("rargs", nargs=argparse.REMAINDER)
+
+    p = sub.add_parser("create", help="创建空密钥库（不需要已有明文文件）")
+    p.add_argument("password", nargs="?")
 
     p = sub.add_parser("init", help="安装终端集成：进入项目目录自动注入")
     p = sub.add_parser("uninit", help="移除终端集成（完整摘除 profile/AutoRun）")

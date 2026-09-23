@@ -90,6 +90,7 @@ $ keyfort restore        # 一键还原回明文文件，删除 .keyfort 与缓�
 | `keyfort list` | 列出密钥名（不显示值） |
 | `keyfort passwd` | 更换加密密码 |
 | `keyfort run <命令>` | 以注入环境执行单条命令（脚本/CI 用；CI 里配 `KEYFORT_PASSWORD` 免交互） |
+| `keyfort create 密码` | 创建空密钥库（无需已有明文文件，之后 set/edit 添加密钥） |
 | `keyfort restore` | 明文还原：密钥合回 env 文件，删除 `.keyfort` 与缓存密码 |
 | `keyfort init` / `uninit` | 安装 / 移除终端集成（幂等，可完整摘除） |
 

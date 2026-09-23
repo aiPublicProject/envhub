@@ -86,6 +86,7 @@ What ends up on your machine:
 | `keyfort list` | List secret names (no values) |
 | `keyfort passwd` | Change the encryption password |
 | `keyfort run <command>` | Run a single command with the injected environment (scripts/CI; set `KEYFORT_PASSWORD` for unattended use) |
+| `keyfort create password` | Create an empty vault from scratch (no plaintext file needed; add secrets later with set/edit) |
 | `keyfort restore` | Restore plaintext: merge secrets back into the env file, delete `.keyfort` and the cached password |
 | `keyfort init` / `uninit` | Install / remove terminal integration (idempotent, fully reversible) |
 

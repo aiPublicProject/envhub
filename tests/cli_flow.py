@@ -295,5 +295,24 @@ case("restore 密钥合回明文",
 case("restore 删除 .keyfort", not enc.exists())
 case("restore 清除 keyring 缓存", ("keyfort", str(PROJ)) not in MemKR.store)
 
+# ---- create：无明文文件直接建空库 ----
+PROJ4 = pathlib.Path(tempfile.mkdtemp(prefix="keyfort-cli-create-"))
+_cwd4 = os.getcwd()
+os.chdir(PROJ4)
+try:
+    cli.main(["create", "pw-create"])
+finally:
+    os.chdir(_cwd4)
+case("create 创建空密钥库", (PROJ4 / ".keyfort").is_file())
+cli.main(["set", "NEW_V", "v1", str(PROJ4)])
+_v4 = cli._entries_from((PROJ4 / ".keyfort").read_bytes(), "pw-create", ".keyfort")
+case("create 后 set 可用", _v4 == {"NEW_V": "v1"}, repr(_v4))
+os.chdir(PROJ4)
+try:
+    _out4 = capture_print(cli.main, ["create", "pw-x"])
+finally:
+    os.chdir(_cwd4)
+case("create 拒绝重复建库", "已有密钥库" in _out4, _out4)
+
 print(f"\n=== {PASS} PASS / {FAIL} FAIL ===", flush=True)
 sys.exit(1 if FAIL else 0)
