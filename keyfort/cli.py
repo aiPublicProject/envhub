@@ -486,11 +486,19 @@ def cmd_uninit(args):
         print("keyfort: 没有需要移除的终端集成")
 
 
+def _emit_script(script: str) -> None:
+    """发射 eval 脚本：强制 LF——Windows 文本模式默认输出 \r\n，
+    会被 sh 的 eval 拼进值里污染密钥。"""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(newline="\n")
+    print(script)
+
+
 def cmd_activate(args):
     enc = _resolve_file(args.file)
     vars, _ = _decrypt_entries(enc)
     if args.emit:
-        print(shells.activate_script(args.emit, vars, args.quiet))
+        _emit_script(shells.activate_script(args.emit, vars, args.quiet))
         return
     print("activate 需要在当前 shell 里 eval 才能生效：")
     print("  PowerShell:  keyfort activate --emit ps | iex")
@@ -503,7 +511,7 @@ def cmd_deactivate(args):
     if not keys:
         sys.exit("当前会话没有 keyfort 注入的变量")
     if args.emit:
-        print(shells.deactivate_script(args.emit, keys, args.quiet))
+        _emit_script(shells.deactivate_script(args.emit, keys, args.quiet))
         return
     print("deactivate 需要在当前 shell 里 eval 才能生效：")
     print("  PowerShell:  keyfort deactivate --emit ps | iex")

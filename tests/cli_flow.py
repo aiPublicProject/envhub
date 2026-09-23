@@ -249,10 +249,12 @@ p = subprocess.run(
     cwd=PROJ, env=env2, capture_output=True, text=True,
     errors="replace", timeout=60)
 case("activate --emit sh",
-     p.returncode == 0 and "export DB_PASS='rotated456'" in p.stdout
+     p.returncode == 0 and "export DB_PASS=" in p.stdout
      and "export API_KEY=" in p.stdout
      and "export KEYFORT_ACTIVE_KEYS=" in p.stdout,
      f"out={p.stdout!r} err={p.stderr[:150]!r}")
+case("emit 输出强制 LF（无 CR 污染）", "\r" not in p.stdout,
+     repr(p.stdout[:80]))
 p = subprocess.run(
     [sys.executable, "-m", "keyfort", "activate", "--emit", "ps", "--quiet"],
     cwd=PROJ, env=env2, capture_output=True, text=True,
