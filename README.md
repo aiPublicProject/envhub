@@ -68,10 +68,26 @@ What ends up on your machine:
 
 | Location | What it is |
 |---|---|
-| `.keyfort` in your project | The encrypted secrets file (auto-added to `.gitignore`) |
+| `.keyfort` in your project | The encrypted vault — **safe to commit to git**; teammates get it via clone |
 | `.env.local` in your project | Secret values replaced with `<keyfort:name>` placeholders, the rest intact — **safe to commit to git** |
 | `C:\Users\you\.keyfort\` (macOS/Linux: `~/.keyfort/`) | A tiny folder holding the cmd auto-activation script; removed by `keyfort uninit` |
 | Your OS password manager | The encryption password — **not a file** |
+
+## Team / New Machine
+
+`.keyfort` is ciphertext — **commit it to git** directly (teammates get it via clone, no out-of-band file transfer):
+
+```console
+$ git add .keyfort && git commit      # after registration
+
+# teammate / new machine, after clone:
+$ pip install keyfort
+$ keyfort                             # type the password once; cached in the local credential store
+```
+
+Daily use on that machine is zero-effort afterwards. After `keyfort passwd`, commit the re-encrypted
+`.keyfort` again. Note: someone who left still holds their old copy — old copy + old password keeps
+working on that copy; to cut them off completely, rotate the secret values themselves.
 
 ## Commands
 
@@ -128,7 +144,6 @@ The common thread: users only learned what these tools uploaded from their own m
 
 - Same-user malware can read your injected environment variables and credential store — the same boundary as 1Password CLI, sops, and ssh-agent; keyfort protects against "secret files committed to git / copied away"
 - Lose the password, lose the data — there is no backdoor; back the password up together with `.keyfort`
-- `git add -f` forced adds — `.gitignore` prevents accidents, not deliberate bypasses
 
 ## Development
 

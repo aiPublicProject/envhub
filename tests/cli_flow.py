@@ -123,9 +123,8 @@ case("部分加密：值替换为占位符",
 case("部分加密：明文保留其余变量",
      "PORT=3000" in plain_now and "DEBUG=1" in plain_now)
 case("部分加密：注释与格式原样保留", "# 注释行" in plain_now)
-_gi = (PROJ / ".gitignore").read_text(encoding="utf-8")
-case("gitignore 仅加 .keyfort（原文件可提交）",
-     ".keyfort" in _gi and ".env.local" not in _gi)
+case("不再自动改写 .gitignore（密文可提交）",
+     not (PROJ / ".gitignore").exists())
 case("密码已入 keyring", "pw-1234" in MemKR.store.values())
 EH_HOME = pathlib.Path(os.environ["KEYFORT_HOME"])
 PS_PROF = EH_HOME / "Documents" / "WindowsPowerShell" / "profile.ps1"
@@ -313,6 +312,28 @@ try:
 finally:
     os.chdir(_cwd4)
 case("create 拒绝重复建库", "已有密钥库" in _out4, _out4)
+
+# ---- 换电脑/团队：仅凭密文文件 + 密码在新环境解锁 ----
+NEWPC = pathlib.Path(tempfile.mkdtemp(prefix="keyfort-cli-newpc-"))
+(NEWPC / ".keyfort").write_bytes((PROJ4 / ".keyfort").read_bytes())
+_env5 = dict(os.environ)
+_env5["KEYFORT_PASSWORD"] = "pw-create"
+p = subprocess.run([sys.executable, "-m", "keyfort", "list", str(NEWPC)],
+                   env=_env5, capture_output=True, text=True,
+                   errors="replace", timeout=60)
+case("换电脑：仅凭密文文件+密码即可解锁（子进程）",
+     p.returncode == 0 and "NEW_V" in p.stdout,
+     f"out={p.stdout!r} err={p.stderr[:150]!r}")
+MemKR.store.clear()                     # 模拟新机器的空系统凭据库
+cli._read_password = lambda prompt="": "pw-create"
+_old5 = os.getcwd()
+os.chdir(NEWPC)
+try:
+    _v5, _ = cli._decrypt_entries(cli._resolve_file())
+finally:
+    os.chdir(_old5)
+case("新机器：输一次密码即解锁并缓存进本机 keyring",
+     _v5 == {"NEW_V": "v1"} and ("keyfort", str(NEWPC)) in MemKR.store)
 
 print(f"\n=== {PASS} PASS / {FAIL} FAIL ===", flush=True)
 sys.exit(1 if FAIL else 0)

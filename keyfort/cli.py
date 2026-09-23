@@ -240,7 +240,6 @@ def cmd_create(args):
     enc = root / store.FILENAME
     enc.write_bytes(store.encrypt_bytes(b"", pw))
     _save_auth(root, pw)
-    store.ensure_gitignore(root, store.FILENAME)
     print(f"✓ 已创建空密钥库 {enc}")
     print("  keyfort set KEY value   添加密钥（免密码）")
     print("  keyfort edit            批量编辑（需密码）")
@@ -298,8 +297,7 @@ def cmd_encrypt(args):
     enc.write_bytes(store.encrypt_bytes(secret_text.encode("utf-8"), pw))
     _save_auth(enc.parent, pw)
     print(f"✓ 密文已写入 {enc}")
-    store.ensure_gitignore(src.parent, store.FILENAME)
-    print("✓ .gitignore 已更新（仅 .keyfort；原文件只剩占位符，可提交）")
+    print("✓ 密文与占位符文件均可提交 git（团队 clone 即得）")
 
     changed = shells.init_all()
     if changed:
@@ -334,7 +332,6 @@ def cmd_edit(args):
         _write_encrypted(enc, after, pw)
         print("keyfort: 已重新加密")
     tmp.unlink()
-    store.ensure_gitignore(enc.parent, store.FILENAME)
 
 
 def _vars_with_cached_pw(enc: pathlib.Path) -> dict:

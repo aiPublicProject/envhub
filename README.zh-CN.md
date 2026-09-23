@@ -72,10 +72,25 @@ $ keyfort restore        # 一键还原回明文文件，删除 .keyfort 与缓�
 
 | 位置 | 是什么 |
 |---|---|
-| 项目里的 `.keyfort` | 密文文件（自动加进 `.gitignore`） |
+| 项目里的 `.keyfort` | 密文文件——**可提交 git**，团队 clone 即得 |
 | 项目里的 `.env.local` | 密钥值替换为 `<keyfort:名>` 占位符，其余原样——**可以提交 git** |
 | `C:\Users\你\.keyfort\`（macOS/Linux：`~/.keyfort/`） | cmd 自动激活用的小脚本，`keyfort uninit` 删掉 |
 | 系统密码管理器 | 加密密码，**不是文件** |
+
+## 团队 / 换电脑
+
+`.keyfort` 是密文，**直接提交进 git**（团队成员 clone 即得，不用走私聊传文件）：
+
+```console
+$ git add .keyfort && git commit      # 登记后提交一次
+
+# 队友 / 新机器 clone 之后：
+$ pip install keyfort
+$ keyfort                             # 输一次密码，自动存入本机凭据库，进入注入环境
+```
+
+之后该机器日常零操作。换密码用 `keyfort passwd` 后重新提交 `.keyfort` 即可。
+注意：已离开的人手里的旧副本 + 旧密码仍能解开旧副本，彻底断绝需轮换密钥值本身。
 
 ## 命令
 
@@ -149,7 +164,6 @@ KEYFORT1
 - 同账户恶意软件能读到你注入的环境变量和凭据库——与 1Password CLI、sops、ssh-agent
   一致；keyfort 防的是"密钥文件被提交到 git / 被拷走"
 - 密码丢失即数据丢失——没有后门，请把密码和 `.keyfort` 一起备份
-- `git add -f` 强推——`.gitignore` 只防误提交，防不了故意绕过
 
 ## 开发
 
