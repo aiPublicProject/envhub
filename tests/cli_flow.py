@@ -345,5 +345,16 @@ case("带引号含空格路径也识别",
      cli._editor_argv('"C:\\Apps\\My Code\\Code.exe"')[-1] == "--wait")
 case("终端编辑器不加参数", cli._editor_argv("vim") == ["vim"])
 
+# ---- 编辑器自动识别：VS Code 系集成终端（TERM_PROGRAM）----
+os.environ.pop("EDITOR", None)
+os.environ["TERM_PROGRAM"] = "vscode"
+case("识别 VS Code 集成终端 → code --wait",
+     cli._editor_base() == "code"
+     and cli._editor_argv(cli._editor_base()) == ["code", "--wait"])
+os.environ["TERM_PROGRAM"] = "cursor"
+case("识别 Cursor 集成终端", cli._editor_base() == "cursor")
+os.environ.pop("TERM_PROGRAM", None)
+os.environ["EDITOR"] = str(_picker_bat)      # 还原，不影响后续
+
 print(f"\n=== {PASS} PASS / {FAIL} FAIL ===", flush=True)
 sys.exit(1 if FAIL else 0)

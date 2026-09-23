@@ -173,8 +173,17 @@ def cmd_bare(args):
     _spawn_injected(vars)
 
 
+def _detect_editor():
+    """从环境识别宿主编辑器：VS Code 系集成终端会设置 TERM_PROGRAM。"""
+    tp = (os.environ.get("TERM_PROGRAM") or "").lower()
+    return {"vscode": "code", "cursor": "cursor",
+            "windsurf": "windsurf"}.get(tp)
+
+
 def _editor_base() -> str:
-    return os.environ.get("EDITOR") or ("notepad" if os.name == "nt" else "vi")
+    if os.environ.get("EDITOR"):
+        return os.environ["EDITOR"]
+    return _detect_editor() or ("notepad" if os.name == "nt" else "vi")
 
 
 def _split_editor(editor: str) -> list:

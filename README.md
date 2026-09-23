@@ -95,7 +95,7 @@ working on that copy; to cut them off completely, rotate the secret values thems
 |---|---|
 | `keyfort .env.local password` | Encrypt & register: choose scope → split & encrypt → install terminal integration → enter injected environment |
 | `keyfort` | Enter the injected environment (in integrated terminals = in-place activation, no exit needed) |
-| `keyfort edit` | Edit secrets in an editor (password required; **re-encrypts on every save**; `-e code` picks the editor, `--wait` auto-added) |
+| `keyfort edit` | Edit secrets in an editor (password required; **re-encrypts on every save**; `-e code` to pick, VS Code/Cursor terminals auto-detected) |
 | `keyfort set KEY value` | Add/update a secret (no password needed) |
 | `keyfort unset KEY` | Delete a secret |
 | `keyfort get KEY` | Print a single secret's value (password required) |
