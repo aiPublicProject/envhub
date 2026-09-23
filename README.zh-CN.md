@@ -44,7 +44,7 @@ $ cd 我的项目            # 新开终端，cd 进来即自动注入，什么�
 ## 安装
 
 ```console
-$ pip install keyfort          # 发布前：pip install git+https://github.com/aiPublicProject/keyfort.git
+$ pip install keyfort
 ```
 
 Python ≥ 3.9；Windows / macOS / Linux。

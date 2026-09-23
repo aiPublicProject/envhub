@@ -40,7 +40,7 @@ In terminals without the integration installed, typing the single word `keyfort`
 ## Installation
 
 ```console
-$ pip install keyfort          # before the first release: pip install git+https://github.com/aiPublicProject/keyfort.git
+$ pip install keyfort
 ```
 
 Python ≥ 3.9; Windows / macOS / Linux.
