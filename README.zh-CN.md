@@ -63,7 +63,7 @@ $ keyfort .env.local 你的密码
 日常就三个动作：
 
 ```console
-$ keyfort edit           # 弹编辑器改密钥，关闭自动重新加密（需输密码）
+$ keyfort edit           # 编辑密钥，保存即重新加密（需输密码；--editor "code --wait" 可指定编辑器）
 $ keyfort set KEY value  # 加一个密钥（免密码）
 $ keyfort restore        # 一键还原回明文文件，删除 .keyfort 与缓存密码
 ```
@@ -98,7 +98,7 @@ $ keyfort                             # 输一次密码，自动存入本机凭�
 |---|---|
 | `keyfort .env.local 密码` | 加密登记：选范围 → 拆分加密 → 装终端集成 → 进入注入环境 |
 | `keyfort` | 进入注入环境（装了终端集成的终端里 = 就地激活，无需 exit） |
-| `keyfort edit` | 用系统默认编辑器编辑密钥（需密码，关闭后自动重新加密） |
+| `keyfort edit` | 编辑密钥（需密码，**保存即重新加密**；`--editor "code --wait"` 可指定编辑器） |
 | `keyfort set KEY value` | 设置/更新一个密钥（免密码） |
 | `keyfort unset KEY` | 删除一个密钥 |
 | `keyfort get KEY` | 查看单个密钥的值（需密码） |

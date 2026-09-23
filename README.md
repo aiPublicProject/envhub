@@ -59,7 +59,7 @@ It asks two things in order: the **encryption scope** (everything, or partial �
 Daily use is three actions:
 
 ```console
-$ keyfort edit           # edit secrets in your editor; re-encrypted on close (password required)
+$ keyfort edit           # edit secrets; re-encrypts on every save (password required; --editor "code --wait" to choose)
 $ keyfort set KEY value  # add a secret (no password)
 $ keyfort restore        # one-click restore to plaintext; deletes .keyfort and the cached password
 ```
@@ -95,7 +95,7 @@ working on that copy; to cut them off completely, rotate the secret values thems
 |---|---|
 | `keyfort .env.local password` | Encrypt & register: choose scope → split & encrypt → install terminal integration → enter injected environment |
 | `keyfort` | Enter the injected environment (in integrated terminals = in-place activation, no exit needed) |
-| `keyfort edit` | Edit secrets in your system editor (password required; re-encrypted on close) |
+| `keyfort edit` | Edit secrets in an editor (password required; **re-encrypts on every save**; `--editor "code --wait"` to choose) |
 | `keyfort set KEY value` | Add/update a secret (no password needed) |
 | `keyfort unset KEY` | Delete a secret |
 | `keyfort get KEY` | Print a single secret's value (password required) |

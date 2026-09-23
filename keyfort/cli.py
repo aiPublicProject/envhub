@@ -9,9 +9,11 @@ import argparse
 import getpass
 import os
 import pathlib
+import shlex
 import subprocess
 import sys
 import tempfile
+import time
 
 from . import shells, store
 
@@ -171,6 +173,19 @@ def cmd_bare(args):
     _spawn_injected(vars)
 
 
+def _editor_base() -> str:
+    return os.environ.get("EDITOR") or ("notepad" if os.name == "nt" else "vi")
+
+
+def _split_editor(editor: str) -> list:
+    """编辑器描述拆成 argv，支持带参数（如 "code --wait"）与带空格路径。"""
+    try:
+        toks = shlex.split(editor, posix=(os.name != "nt"))
+    except ValueError:
+        return [editor]
+    return [t.strip('"') for t in toks] if os.name == "nt" else toks
+
+
 def _pick_by_editor(src: pathlib.Path, text: str):
     """弹出编辑器：只保留要加密的行，其余行删掉。
     返回 (用户留下的文本, 选中的变量)。不做前后差异对比——用户留下什么，
@@ -182,8 +197,7 @@ def _pick_by_editor(src: pathlib.Path, text: str):
     tmp.write_text(text, encoding="utf-8")
     print("已打开编辑器：只保留要加密的行，其余行删掉；保存并关闭后继续")
     print(f"（临时文件：{tmp}）")
-    editor = os.environ.get("EDITOR") or ("notepad" if os.name == "nt" else "vi")
-    subprocess.call([editor, str(tmp)])
+    subprocess.call(_split_editor(_editor_base()) + [str(tmp)])
     kept = _read_text_tol(tmp)
     tmp.unlink()
     return kept, store.parse_env_text(kept)
@@ -322,16 +336,29 @@ def cmd_edit(args):
     os.close(fd)
     tmp = pathlib.Path(tmp)
     tmp.write_text(text, encoding="utf-8")
-    editor = os.environ.get("EDITOR") or ("notepad" if os.name == "nt" else "vi")
-    before = _read_text_tol(tmp)
-    subprocess.call([editor, str(tmp)])
-    after = _read_text_tol(tmp)
-    if after == before:
+    editor = args.editor or _editor_base()
+    print(f"已打开编辑器：保存即重新加密（{tmp}）")
+    proc = subprocess.Popen(_split_editor(editor) + [str(tmp)])
+    last = text
+    try:
+        while proc.poll() is None:            # 编辑器开着：每次保存立刻回写密文
+            time.sleep(0.4)
+            cur = _read_text_tol(tmp) if tmp.exists() else None
+            if cur is not None and cur != last:
+                _write_encrypted(enc, cur, pw)
+                last = cur
+        cur = _read_text_tol(tmp) if tmp.exists() else None
+        if cur is not None and cur != last:   # 退出瞬间的那次保存
+            _write_encrypted(enc, cur, pw)
+            last = cur
+    finally:
+        proc.wait()
+        if tmp.exists():
+            tmp.unlink()
+    if last == text:
         print("keyfort: 内容未变化，不重写")
     else:
-        _write_encrypted(enc, after, pw)
-        print("keyfort: 已重新加密")
-    tmp.unlink()
+        print("keyfort: 已保存并重新加密")
 
 
 def _vars_with_cached_pw(enc: pathlib.Path) -> dict:
@@ -502,8 +529,11 @@ def main(argv=None):
         description="最简单的密钥环境管理：一行加密，一个词进入注入环境")
     sub = ap.add_subparsers(dest="cmd", required=False)
 
-    p = sub.add_parser("edit", help="用系统默认编辑器编辑密钥（需输入密码）")
+    p = sub.add_parser("edit", help="用编辑器编辑密钥（需密码，保存即重新加密）")
     p.add_argument("file", nargs="?", help="加密文件或目录（默认向上查找）")
+    p.add_argument("--editor", "-E",
+                   help='指定编辑器（支持参数，如 "code --wait"；'
+                        "GUI 编辑器需保持阻塞直到关闭）")
 
     p = sub.add_parser("set", help="设置/更新一个密钥（无需输入密码）")
     p.add_argument("key")

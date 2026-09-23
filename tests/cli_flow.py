@@ -153,24 +153,25 @@ cli.main(["unset", "NEW_KEY", str(PROJ)])
 out = capture_print(cli.main, ["get", "NEW_KEY", str(PROJ)])
 case("unset 后查看该密钥已不存在", "不存在" in out, out)
 
-# ---- edit：用假编辑器改临时文件 ----
+# ---- edit：--editor 指定编辑器 + 保存即重加密（两次保存，中途一次靠轮询）----
 (PROJ / "_fake_editor.py").write_text(
-    "import sys\n"
+    "import sys, time\n"
     "p = sys.argv[1]\n"
-    "s = open(p, encoding='utf-8').read().replace('secret123', 'rotated456')\n"
-    "open(p, 'w', encoding='utf-8').write(s)\n", encoding="utf-8")
-os.environ["EDITOR"] = sys.executable
-# 简化：EDITOR 直接指向带参数的场景复杂，改用一个包装 bat
+    "def sub(a, b):\n"
+    "    s = open(p, encoding='utf-8').read().replace(a, b)\n"
+    "    open(p, 'w', encoding='utf-8').write(s)\n"
+    "sub('secret123', 'mid456')\n"            # 第一次保存：编辑器还开着，轮询应捕获
+    "time.sleep(1.2)\n"
+    "sub('mid456', 'rotated456')\n", encoding="utf-8")
 wrapper = PROJ / "_editor.bat"
 wrapper.write_text(f'@echo off\r\n"{sys.executable}" '
                    f'"{PROJ / "_fake_editor.py"}" %*\r\n', encoding="gbk")
-os.environ["EDITOR"] = str(wrapper)
-cli.main(["edit", str(PROJ)])
+cli.main(["edit", "--editor", str(wrapper), str(PROJ)])
 out = capture_print(cli.main, ["get", "DB_PASS", str(PROJ)])
-case("edit 编辑后回加密", out.strip() == "rotated456", out[:150])
+case("edit 保存即重加密（两次保存）", out.strip() == "rotated456", out[:150])
 (PROJ / "_fake_editor.py").unlink()
 wrapper.unlink()
-os.environ["EDITOR"] = str(_picker_bat)      # 恢复给后续部分加密用例
+os.environ["EDITOR"] = str(_picker_bat)      # 选择密钥仍走 EDITOR
 
 # ---- passwd 换密码（旧→新，新密码生效、旧密码失效）----
 answers = {"旧密码: ": "pw-1234", "新密码: ": "new-pw-99",
