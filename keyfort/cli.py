@@ -186,6 +186,23 @@ def _split_editor(editor: str) -> list:
     return [t.strip('"') for t in toks] if os.name == "nt" else toks
 
 
+_NEEDS_WAIT = {          # GUI 编辑器：不阻塞直到关闭就必须补 --wait
+    "code", "code-insiders", "cursor", "windsurf", "subl",
+    "idea", "pycharm", "webstorm", "goland", "clion", "rider",
+}
+
+
+def _editor_argv(editor: str) -> list:
+    """拆 argv 并为已知 GUI 编辑器自动补 --wait（用户已写则不重复）。"""
+    toks = _split_editor(editor)
+    base = pathlib.Path(toks[0]).name.lower()
+    if base.endswith(".exe"):
+        base = base[:-4]
+    if base in _NEEDS_WAIT and "--wait" not in toks:
+        toks.append("--wait")
+    return toks
+
+
 def _pick_by_editor(src: pathlib.Path, text: str):
     """弹出编辑器：只保留要加密的行，其余行删掉。
     返回 (用户留下的文本, 选中的变量)。不做前后差异对比——用户留下什么，
@@ -197,7 +214,7 @@ def _pick_by_editor(src: pathlib.Path, text: str):
     tmp.write_text(text, encoding="utf-8")
     print("已打开编辑器：只保留要加密的行，其余行删掉；保存并关闭后继续")
     print(f"（临时文件：{tmp}）")
-    subprocess.call(_split_editor(_editor_base()) + [str(tmp)])
+    subprocess.call(_editor_argv(_editor_base()) + [str(tmp)])
     kept = _read_text_tol(tmp)
     tmp.unlink()
     return kept, store.parse_env_text(kept)
@@ -338,7 +355,7 @@ def cmd_edit(args):
     tmp.write_text(text, encoding="utf-8")
     editor = args.editor or _editor_base()
     print(f"已打开编辑器：保存即重新加密（{tmp}）")
-    proc = subprocess.Popen(_split_editor(editor) + [str(tmp)])
+    proc = subprocess.Popen(_editor_argv(editor) + [str(tmp)])
     last = text
     try:
         while proc.poll() is None:            # 编辑器开着：每次保存立刻回写密文
@@ -532,8 +549,8 @@ def main(argv=None):
     p = sub.add_parser("edit", help="用编辑器编辑密钥（需密码，保存即重新加密）")
     p.add_argument("file", nargs="?", help="加密文件或目录（默认向上查找）")
     p.add_argument("--editor", "-E",
-                   help='指定编辑器（支持参数，如 "code --wait"；'
-                        "GUI 编辑器需保持阻塞直到关闭）")
+                   help="指定编辑器（常见编辑器只写名字即可，如 -e code，"
+                        "自动补 --wait 保持阻塞）")
 
     p = sub.add_parser("set", help="设置/更新一个密钥（无需输入密码）")
     p.add_argument("key")

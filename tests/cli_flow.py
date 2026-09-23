@@ -336,5 +336,12 @@ finally:
 case("新机器：输一次密码即解锁并缓存进本机 keyring",
      _v5 == {"NEW_V": "v1"} and ("keyfort", str(NEWPC)) in MemKR.store)
 
+# ---- 编辑器包装：常见 GUI 编辑器只写名字，自动补 --wait ----
+case("-e code 自动补 --wait", cli._editor_argv("code") == ["code", "--wait"])
+case("已带 --wait 不重复补", cli._editor_argv("code --wait") == ["code", "--wait"])
+case("路径形式也识别（Code.exe）",
+     cli._editor_argv(r"C:\Apps\Microsoft Code.exe")[-1] == "--wait")
+case("终端编辑器不加参数", cli._editor_argv("vim") == ["vim"])
+
 print(f"\n=== {PASS} PASS / {FAIL} FAIL ===", flush=True)
 sys.exit(1 if FAIL else 0)
