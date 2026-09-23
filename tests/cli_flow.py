@@ -425,5 +425,103 @@ case("识别 Cursor 集成终端", cli._editor_base() == "cursor")
 os.environ.pop("TERM_PROGRAM", None)
 os.environ["EDITOR"] = str(_picker_bat)      # 还原，不影响后续
 
+# ---- 评审缺陷修复回归（2026-09-23，9 项实证缺陷）----
+# 1a keyring 陈旧 + 正确的 KEYFORT_PASSWORD → 环境变量优先且治愈缓存
+F1 = pathlib.Path(tempfile.mkdtemp(prefix="kf-fix1-"))
+(F1 / ".keyfort").write_bytes(store.encrypt_bytes(b"K=v\n", "good-pw"))
+MemKR.store[("keyfort", str(F1))] = "stale-pw"
+os.environ["KEYFORT_PASSWORD"] = "good-pw"
+_v1, _pw1 = cli._decrypt_entries(F1 / ".keyfort")
+case("1a 环境变量正确密码优先于陈旧 keyring",
+     _v1 == {"K": "v"} and MemKR.store[("keyfort", str(F1))] == "good-pw",
+     repr(MemKR.store.get(("keyfort", str(F1)))))
+os.environ.pop("KEYFORT_PASSWORD", None)
+# 1b 陈旧缓存 + 交互 → 重输成功并纠正缓存
+cli._read_password = lambda prompt="": "good-pw"
+_v1b, _ = cli._decrypt_entries(F1 / ".keyfort")
+case("1b 陈旧缓存交互重输并更新",
+     _v1b == {"K": "v"} and MemKR.store[("keyfort", str(F1))] == "good-pw")
+# 1c 交互三次全错 → 退出且错误凭据不入 keyring
+F1c = pathlib.Path(tempfile.mkdtemp(prefix="kf-fix1c-"))
+(F1c / ".keyfort").write_bytes(store.encrypt_bytes(b"K=v\n", "pw-x"))
+cli._read_password = lambda prompt="": "nope"
+try:
+    cli._decrypt_entries(F1c / ".keyfort")
+    _out1c = ""
+except SystemExit as e:
+    _out1c = str(e)
+case("1c 三次密码错误退出且不入 keyring",
+     "三次" in _out1c and ("keyfort", str(F1c)) not in MemKR.store, _out1c)
+
+# 2 重复登记拦截，旧库字节不动
+F2 = pathlib.Path(tempfile.mkdtemp(prefix="kf-fix2-"))
+(F2 / ".keyfort").write_bytes(store.encrypt_bytes(b"OLD=1\n", "pw-a"))
+(F2 / ".env.local").write_text("NEW=1\n", encoding="utf-8")
+_bytes2 = (F2 / ".keyfort").read_bytes()
+_out2 = capture_print(cli.main, [str(F2 / ".env.local"), "pw-b"])
+case("2 重复登记被拦截且旧库未动",
+     "已存在密钥库" in _out2 and (F2 / ".keyfort").read_bytes() == _bytes2, _out2)
+
+# 3 非法密钥名：入口拒绝 + emit 防线
+_out3 = capture_print(cli.main, ["set", "A;touch", "1", str(F2)])
+case("3a set 拒绝非法密钥名", "非法密钥名" in _out3, _out3)
+case("3b emit 防线跳过非法名",
+     "touch" not in shells.activate_script("sh", {"A;touch x": "1"}, True))
+
+# 4 损坏 base64（mod4==1 截断）→ 干净报错不裸栈
+_g4 = store.encrypt_bytes(b"K=v\n", "pw")
+_m4, _, _b4 = _g4.decode().strip().partition("\n")
+_n4 = len(_b4)
+while _n4 % 4 != 1:
+    _n4 -= 1
+try:
+    store.decrypt_bytes((_m4 + "\n" + _b4[:_n4] + "\n").encode(), "pw")
+    _out4 = ""
+except store.NotKeyfortFile as e:
+    _out4 = str(e)
+except Exception as e:
+    _out4 = f"WRONG:{type(e).__name__}"
+case("4 损坏 base64 干净报错", "损坏" in _out4 or "不完整" in _out4, _out4)
+
+# 5 会失真的值：set 拒绝 + 登记拦截
+_bad5 = []
+for _v in ["'quoted'", "abc ", "l1\nl2"]:
+    _o = capture_print(cli.main, ["set", "K", _v, str(F2)])
+    if "无法原样保存" not in _o:
+        _bad5.append(_v)
+case("5a set 拒绝会失真的值", not _bad5, repr(_bad5))
+# 5b 文件源的引号按 dotenv 语义剥掉（与框架读取行为一致，锁定该约定）
+F5 = pathlib.Path(tempfile.mkdtemp(prefix="kf-fix5-"))
+(F5 / ".env.local").write_text("Q='quoted'\n", encoding="utf-8")
+capture_print(cli.main, [str(F5 / ".env.local"), "pw-5x"])
+_v5 = cli._entries_from((F5 / ".keyfort").read_bytes(), "pw-5x", ".keyfort")
+case("5b 文件引号值按 dotenv 语义入库", _v5 == {"Q": "quoted"}, repr(_v5))
+
+# 6 编辑器不存在 → 干净报错且无临时文件残留
+F6 = pathlib.Path(tempfile.mkdtemp(prefix="kf-fix6-"))
+(F6 / ".keyfort").write_bytes(store.encrypt_bytes(b"K=v\n", "pw6"))
+cli._read_password = lambda prompt="": "pw6"
+_t6 = pathlib.Path(tempfile.gettempdir())
+_b6 = len(list(_t6.glob("keyfort-edit-*")))
+_out6 = capture_print(cli.main, ["edit", "--editor", "no-such-ed-xyz", str(F6)])
+_a6 = len(list(_t6.glob("keyfort-edit-*")))
+case("6 编辑器不存在干净报错且无残留",
+     "找不到编辑器" in _out6 and _a6 == _b6, f"{_out6!r} 残留{_a6 - _b6}")
+
+# 7a UTF-16 明确拒绝
+F7 = pathlib.Path(tempfile.mkdtemp(prefix="kf-fix7-"))
+(F7 / ".env.local").write_text("K=值\n", encoding="utf-16")
+_out7 = capture_print(cli.main, [str(F7 / ".env.local"), "pw7"])
+case("7a UTF-16 明确拒绝", "UTF-16" in _out7, _out7)
+
+# 7b 登记与还原保留 CRLF 行尾
+_crlf = "A=1\r\nB=2\r\n"
+_h7 = cli._hide_keys_in_text(_crlf, {"A"})
+_u7 = cli._unhide_keys_in_text(_h7, {"A": "1"})
+case("7b 登记/还原保留 CRLF",
+     _h7 == "A=<keyfort:A>\r\nB=2\r\n" and _u7 == "A=1\r\nB=2\r\n",
+     f"{_h7!r} {_u7!r}")
+
+
 print(f"\n=== {PASS} PASS / {FAIL} FAIL ===", flush=True)
 sys.exit(1 if FAIL else 0)

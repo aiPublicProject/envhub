@@ -11,6 +11,7 @@ KEYFORT_HOME 重定向全部落盘位置（测试隔离，绝不碰真实 profil
 """
 import os
 import pathlib
+import re
 import shutil
 
 MARK_BEGIN = "# >>> keyfort init >>>"
@@ -73,7 +74,7 @@ function keyfort {
 }
 function __keyfort_find {
   $d = $PWD.Path
-  while ($d -and -not (Test-Path (Join-Path $d '.keyfort'))) {
+  while ($d -and -not (Test-Path (Join-Path $d '.keyfort') -PathType Leaf)) {
     $up = Split-Path $d
     if (-not $up -or $up -eq $d) { return $null }
     $d = $up
@@ -176,7 +177,7 @@ def _cmd_hook_bat() -> str:
         'if not "%cmdcmdline%"=="" echo(%cmdcmdline%| findstr /i /c:" /c" >nul && goto :eof',
         'set "d=%CD%"',
         ":walk",
-        'if exist "%d%\\.keyfort" goto activate',
+        'if not exist "%d%\\.keyfort\\*" if exist "%d%\\.keyfort" goto activate',
         'for %%i in ("%d%\\..") do set "up=%%~fi"',
         'if "%up%"=="%d%" goto :eof',
         'set "d=%up%"',
@@ -342,8 +343,13 @@ def _sh_quote(v: str) -> str:
     return "'" + v.replace("'", "'\\''") + "'"
 
 
+_KEY_OK = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
 def activate_script(fmt: str, vars: dict, quiet: bool) -> str:
-    """生成把 vars 注入当前会话的脚本（ps / sh / cmd）。"""
+    """生成把 vars 注入当前会话的脚本（ps / sh / cmd）。
+    非法密钥名直接跳过（防线：入口已校验，这里防历史脏数据生成可注入语句）。"""
+    vars = {k: v for k, v in vars.items() if _KEY_OK.match(k)}
     keys = ",".join(vars)
     lines = []
     if fmt == "ps":
@@ -369,6 +375,7 @@ def activate_script(fmt: str, vars: dict, quiet: bool) -> str:
 
 def deactivate_script(fmt: str, keys: list, quiet: bool) -> str:
     """生成清除注入变量的脚本；keys 来自 KEYFORT_ACTIVE_KEYS 标记。"""
+    keys = [k for k in keys if _KEY_OK.match(k)]
     all_keys = list(keys) + ["KEYFORT_ACTIVE_KEYS", "KEYFORT_DIR"]
     lines = []
     if fmt == "ps":

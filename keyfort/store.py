@@ -6,6 +6,7 @@
 - 密码不在这里存储：调用方负责（keyring）。
 """
 import base64
+import binascii
 import hashlib
 import os
 import pathlib
@@ -49,7 +50,12 @@ def decrypt_bytes(data: bytes, pw: str) -> bytes:
         raise NotKeyfortFile("不是 keyfort 加密文件（KEYFORT1）")
     try:
         blob = base64.b64decode(b64.strip())
-        salt, nonce, ct = blob[:16], blob[16:28], blob[28:]
+    except (binascii.Error, ValueError):
+        raise NotKeyfortFile("加密数据损坏（base64 非法，可能被截断或合并冲突）")
+    if len(blob) < 28:
+        raise NotKeyfortFile("加密数据不完整（可能被截断）")
+    salt, nonce, ct = blob[:16], blob[16:28], blob[28:]
+    try:
         return AESGCM(_derive(pw, salt)).decrypt(nonce, ct, None)
     except InvalidTag:
         raise WrongPassword("密码不正确")

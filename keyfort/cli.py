@@ -9,6 +9,7 @@ import argparse
 import getpass
 import os
 import pathlib
+import re
 import shlex
 import subprocess
 import sys
@@ -18,6 +19,30 @@ import time
 from . import shells, store
 
 AUTH_SERVICE = "keyfort"
+
+_KEY_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _value_problem(v: str):
+    """dotenv 语义下无法原样往返的值（存进去再读出来会变样）。"""
+    if "\n" in v or "\r" in v:
+        return "包含换行"
+    if v != v.strip():
+        return "首尾有空格"
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+        return "被引号包裹（读取时会被剥掉引号）"
+    return None
+
+
+def _vars_problems(vars: dict) -> str:
+    ps = []
+    for k, v in vars.items():
+        if not _KEY_RE.fullmatch(k):
+            ps.append(f"非法密钥名 {k}")
+        p = _value_problem(v)
+        if p:
+            ps.append(f"{k} 的值{p}")
+    return "；".join(ps)
 
 
 # ---------------------------------------------------------------- keyring 包装
@@ -79,8 +104,12 @@ def _read_password(prompt="文件密码: "):
 
 
 def _read_text_tol(path: pathlib.Path) -> str:
-    """按能读的编码读（utf-8 / gbk），编辑器存成 ANSI 也不炸。"""
+    """按能读的编码读（utf-8 / gbk），编辑器存成 ANSI 也不炸；
+    UTF-16 明确拒绝（继续解析只会静默乱码入库）。"""
     raw = path.read_bytes()
+    if raw.startswith(b"\xff\xfe") or raw.startswith(b"\xfe\xff"):
+        sys.exit(f"{path.name} 是 UTF-16 编码，keyfort 支持 UTF-8 / GBK："
+                 "请用编辑器另存为 UTF-8 后重试")
     for enc in ("utf-8-sig", "utf-8", "gbk"):
         try:
             return raw.decode(enc)
@@ -106,28 +135,32 @@ def _entries_from(data: bytes, pw: str, name: str) -> dict:
 
 
 def _decrypt_entries(enc: pathlib.Path, pw=None, allow_prompt=True):
-    """返回 (vars: dict, pw: str)。取密顺序：显式传入 → KEYFORT_PASSWORD（CI）
-    → keyring → 交互询问（最多三次）。非交互且没有可用密码 → 明确退出。"""
+    """返回 (vars: dict, pw: str)。取密顺序：显式传入 → KEYFORT_PASSWORD（CI，
+    显式给错即快速失败）→ keyring（错且可交互则进入重输，成功即纠正缓存）
+    → 交互询问（最多三次）。非交互且没有可用密码 → 明确退出。"""
     root = str(enc.parent)
     data = enc.read_bytes()
-    if pw is None:
-        pw = _cached_pw(root)
-        if pw:
-            allow_prompt = False
-    if pw is None:
-        pw = _kr_get(root)
-        if pw:
-            allow_prompt = False
     if pw is not None:
+        return _entries_from(data, pw, enc.name), pw
+    env_pw = os.environ.get("KEYFORT_PASSWORD")
+    if env_pw:
         try:
-            return _entries_from(data, pw, enc.name), pw
+            vars = _entries_from(data, env_pw, enc.name)
+            _kr_set(root, env_pw)               # 顺手治愈陈旧的 keyring 缓存
+            return vars, env_pw
+        except store.WrongPassword:
+            sys.exit("KEYFORT_PASSWORD 与加密文件不匹配")
+    cached = _kr_get(root)
+    if cached:
+        try:
+            return _entries_from(data, cached, enc.name), cached
         except store.WrongPassword:
             if not allow_prompt:
-                sys.exit("KEYFORT_PASSWORD 与加密文件不匹配")
+                sys.exit("keyring 缓存的密码已失效（密码在别处被更换过）。\n"
+                         "交互运行一次 keyfort 重输新密码即可更新缓存")
             print("缓存的密码不正确，请重新输入")
-            pw = None
     if not allow_prompt:
-        sys.exit("密码不可用（keyring 无记录或已失效）。先运行 keyfort 重新解锁。")
+        sys.exit("密码不可用（keyring 无记录且未设 KEYFORT_PASSWORD）。先运行 keyfort 解锁一次")
     for _ in range(3):
         pw = _read_password()
         try:
@@ -223,48 +256,56 @@ def _pick_by_editor(src: pathlib.Path, text: str):
     tmp.write_text(text, encoding="utf-8")
     print("已打开编辑器：只保留要加密的行，其余行删掉；保存并关闭后继续")
     print(f"（临时文件：{tmp}）")
-    subprocess.call(_editor_argv(_editor_base()) + [str(tmp)])
+    try:
+        subprocess.call(_editor_argv(_editor_base()) + [str(tmp)])
+    except FileNotFoundError:
+        tmp.unlink()
+        sys.exit(f"找不到编辑器：{_editor_base()}")
     kept = _read_text_tol(tmp)
     tmp.unlink()
     return kept, store.parse_env_text(kept)
 
 
 def _hide_keys_in_text(text: str, keys: set) -> str:
-    """把选中密钥的值原位替换为 <keyfort:同名> 占位符；行/注释/其余行原样保留，
-    文件从此可提交 git。"""
+    """把选中密钥的值原位替换为 <keyfort:同名> 占位符；行/注释/其余行原样保留
+    （含每行的行尾风格），文件从此可提交 git。"""
     out = []
-    for line in text.splitlines():
-        stripped = line.strip()
+    for line in text.splitlines(keepends=True):
+        body = line.rstrip("\r\n")
+        stripped = body.strip()
         k = (stripped.partition("=")[0].strip()
              if not stripped.startswith("#") and "=" in stripped else None)
-        out.append(f"{k}=<keyfort:{k}>" if k in keys else line)
-    return "\n".join(out) + ("\n" if text.endswith("\n") else "")
+        out.append(f"{k}=<keyfort:{k}>{line[len(body):]}" if k in keys else line)
+    return "".join(out)
 
 
 def _unhide_keys_in_text(text: str, vars: dict) -> str:
-    """把 <keyfort:名> 占位符换回真实值；库里有而文件没有的密钥追加到末尾。"""
-    out, seen = [], set()
-    for line in text.splitlines():
-        stripped = line.strip()
+    """把 <keyfort:名> 占位符换回真实值（保留行尾风格）；
+    库里有而文件没有的密钥追加到末尾。"""
+    out, seen, last_eol = [], set(), "\n"
+    for line in text.splitlines(keepends=True):
+        body = line.rstrip("\r\n")
+        eol = line[len(body):]
+        if eol:
+            last_eol = eol
+        stripped = body.strip()
         k, _, v = (stripped.partition("=") if "=" in stripped else ("", "", ""))
         v = v.strip()
         if (not stripped.startswith("#") and k.strip()
                 and v.startswith("<keyfort:") and v.endswith(">")):
             name = v[len("<keyfort:"):-1]
             if name in vars:
-                out.append(f"{name}={vars[name]}")
+                out.append(f"{name}={vars[name]}{eol}")
                 seen.add(name)
                 continue
         out.append(line)
-    body = "\n".join(out)
+    body_txt = "".join(out)
     missing = [k for k in vars if k not in seen]
     if missing:
-        if body and not body.endswith("\n"):
-            body += "\n"
-        body += "".join(f"{k}={vars[k]}\n" for k in missing)
-    elif text.endswith("\n"):
-        body += "\n"
-    return body
+        if body_txt and not body_txt.endswith(("\n", "\r")):
+            body_txt += last_eol
+        body_txt += "".join(f"{k}={vars[k]}{last_eol}" for k in missing)
+    return body_txt
 
 
 def cmd_create(args):
@@ -301,6 +342,10 @@ def cmd_encrypt(args):
         sys.exit(f"文件不存在：{src}")
     if src.name == store.FILENAME:
         return cmd_bare(args)
+    existing = src.parent / store.FILENAME
+    if existing.is_file():                    # 已有密钥库：拦截，防止静默覆盖丢密钥
+        sys.exit(f"已存在密钥库 {existing}。要重新登记先 keyfort restore 还原，"
+                 f"或确认不需要旧密钥后删除 {existing.name}")
     text = _read_text_tol(src)
     all_vars = store.parse_env_text(text)
     if not all_vars:
@@ -364,19 +409,34 @@ def cmd_edit(args):
     tmp.write_text(text, encoding="utf-8")
     editor = args.editor or _editor_base()
     print(f"已打开编辑器：保存即重新加密（{tmp}）")
-    proc = subprocess.Popen(_editor_argv(editor) + [str(tmp)])
+    try:
+        proc = subprocess.Popen(_editor_argv(editor) + [str(tmp)])
+    except FileNotFoundError:
+        tmp.unlink()
+        sys.exit(f"找不到编辑器：{editor}")
     last = text
+    warned = None
     try:
         while proc.poll() is None:            # 编辑器开着：每次保存立刻回写密文
             time.sleep(0.4)
             cur = _read_text_tol(tmp) if tmp.exists() else None
             if cur is not None and cur != last:
+                _probs = _vars_problems(store.parse_env_text(cur))
+                if _probs:                    # 非法内容不入库，改正后自动恢复
+                    if cur != warned:
+                        print(f"⚠ 本次保存未入库（{_probs}），改正后再保存")
+                        warned = cur
+                    continue
                 _write_encrypted(enc, cur, pw)
                 last = cur
         cur = _read_text_tol(tmp) if tmp.exists() else None
         if cur is not None and cur != last:   # 退出瞬间的那次保存
-            _write_encrypted(enc, cur, pw)
-            last = cur
+            _probs = _vars_problems(store.parse_env_text(cur))
+            if _probs:
+                print(f"⚠ 最后一次保存未入库（{_probs}）")
+            else:
+                _write_encrypted(enc, cur, pw)
+                last = cur
     finally:
         proc.wait()
         if tmp.exists():
@@ -398,6 +458,11 @@ def _vars_with_cached_pw(enc: pathlib.Path) -> dict:
 
 
 def cmd_set(args):
+    if not _KEY_RE.fullmatch(args.key):
+        sys.exit(f"非法密钥名（只允许字母/数字/下划线，不以数字开头）：{args.key}")
+    _p = _value_problem(args.value)
+    if _p:
+        sys.exit(f"值无法原样保存（{_p}），请调整后重试")
     enc = _resolve_file(args.file)
     vars = _vars_with_cached_pw(enc)
     vars[args.key] = args.value
